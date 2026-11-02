@@ -8,6 +8,8 @@ Results are cached in data/cache/ (git-ignored). Use --refresh to re-download.
 from __future__ import annotations
 
 import argparse
+import logging
+import warnings
 from datetime import date
 
 from ips_soundboard.holdings import load_holdings
@@ -18,6 +20,11 @@ CACHE_DIR = "data/cache"
 
 
 def main() -> None:
+    # yfinance triggers pandas deprecation warnings internally; they are not ours to fix
+    warnings.filterwarnings("ignore", module=r"yfinance(\..*)?$")
+    # show why an individual symbol failed (logged by the Yahoo client)
+    logging.basicConfig(level=logging.WARNING, format="  ! %(message)s")
+
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("holdings")
     parser.add_argument("--base", default="CHF")
