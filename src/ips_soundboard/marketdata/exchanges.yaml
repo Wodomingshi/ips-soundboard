@@ -1,0 +1,30 @@
+# Translate canonical tickers ("EXCHANGE:SYMBOL", Google Finance style) into
+# each provider's own symbol format. Config, not code: add exchanges here.
+#
+# suffix: appended to the symbol
+# dot_to_dash: share-class dots become dashes (US: BRK.B -> BRK-B)
+
+yahoo:
+  NYSE:         {suffix: "", dot_to_dash: true}
+  NASDAQ:       {suffix: "", dot_to_dash: true}
+  NYSEARCA:     {suffix: "", dot_to_dash: true}
+  NYSEAMERICAN: {suffix: "", dot_to_dash: true}
+  BATS:         {suffix: "", dot_to_dash: true}
+  OTCMKTS:      {suffix: "", dot_to_dash: true}
+  SWX:          {suffix: ".SW"}
+  VTX:          {suffix: ".SW"}
+  ETR:          {suffix: ".DE"}
+  FRA:          {suffix: ".F"}
+  AMS:          {suffix: ".AS"}
+  EPA:          {suffix: ".PA"}
+  EBR:          {suffix: ".BR"}
+  BIT:          {suffix: ".MI"}
+  BME:          {suffix: ".MC"}
+  LON:          {suffix: ".L"}
+  STO:          {suffix: ".ST"}
+  CPH:          {suffix: ".CO"}
+  HEL:          {suffix: ".HE"}
+  TSE:          {suffix: ".TO"}
+  TYO:          {suffix: ".T"}
+  HKG:          {suffix: ".HK"}
+  ASX:          {suffix: ".AX"}

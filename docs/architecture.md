@@ -16,9 +16,9 @@ Any figure in a report must be traceable to an engine or risk function. The narr
 
 ## Module order
 1. **IPS schema** ✅
-2. Holdings schema and loader (CSV)
-3. Engine: valuation in base currency, weights, drift vs SAA, limit checks
-4. Market data: prices and FX (swappable provider)
+2. Holdings schema and loader (CSV) ✅
+3. Engine: valuation in base currency, weights, drift vs SAA, limit checks ✅
+4. Market data: prices and FX (swappable provider) ✅
 5. Risk analyser
 6. IPS extraction (LLM)
 7. Holdings classification (LLM)
