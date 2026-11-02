@@ -24,6 +24,9 @@ InstrumentType = Literal["stock", "etf", "fund", "bond", "cash", "commodity", "p
 #   theme     - a TAA theme, subject to the theme budget
 Role = Literal["core", "satellite", "theme"]
 
+# Instrument properties the IPS can ban. In a CSV, write them separated by ';'.
+Flag = Literal["leveraged", "inverse", "derivative", "short"]
+
 _SNAKE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
@@ -46,6 +49,15 @@ class Holding(BaseModel):
     role: Role | None = None
     purchase_date: date | None = None
     purchase_price: float | None = Field(default=None, ge=0.0)
+    flags: frozenset[Flag] = frozenset()
+
+    @field_validator("flags", mode="before")
+    @classmethod
+    def _split_flags(cls, value: object) -> object:
+        """'leveraged; inverse' -> {'leveraged', 'inverse'}"""
+        if isinstance(value, str):
+            return {part.strip().lower() for part in value.replace(",", ";").split(";") if part.strip()}
+        return value
 
     @field_validator("name", "ticker", mode="before")
     @classmethod
