@@ -54,6 +54,9 @@ class Liquidity(_Strict):
 
     monthly_expenses_max: float | None = Field(default=None, ge=0.0)
     min_months_of_expenses: float | None = Field(default=None, ge=0.0)
+    # Holdings tagged with this sleeve are the cash reserve: counted toward the
+    # liquidity check and excluded from SAA weights. None = reserve held elsewhere.
+    reserve_sleeve: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]*$")
 
     def required_reserve(self) -> float | None:
         """Minimum reserve in base currency, or None if the IPS does not set one."""
@@ -160,6 +163,14 @@ class IPS(_Strict):
         if abs(total - 1.0) > _SAA_SUM_TOLERANCE:
             raise ValueError(f"SAA targets must sum to 1.0, got {total:.6f}")
         return saa
+
+    @model_validator(mode="after")
+    def _reserve_is_not_an_saa_sleeve(self) -> IPS:
+        if self.liquidity.reserve_sleeve in self.saa:
+            raise ValueError(
+                f"reserve_sleeve '{self.liquidity.reserve_sleeve}' is also an SAA sleeve; it would be counted twice"
+            )
+        return self
 
 
 def load_ips(path: str | Path) -> IPS:
