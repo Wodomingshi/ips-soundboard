@@ -86,3 +86,11 @@ class YahooProvider:
         symbols = {to_provider_symbol(t, "yahoo"): t for t in unique}
         renamed = self.client.closes(list(symbols), start, end).rename(columns=symbols)
         return renamed[[t for t in unique if t in renamed.columns]]
+
+    def fx_history(self, currencies: Sequence[str], base: str, start: date, end: date) -> pd.DataFrame:
+        wanted = [c.upper() for c in dict.fromkeys(currencies) if c.upper() != base.upper()]
+        symbols = {f"{c}{base.upper()}=X": c for c in wanted}
+        if not symbols:
+            return pd.DataFrame()
+        renamed = self.client.closes(list(symbols), start, end).rename(columns=symbols)
+        return renamed[[c for c in wanted if c in renamed.columns]]

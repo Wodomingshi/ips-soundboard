@@ -23,7 +23,7 @@ dev = ["pytest>=8.0"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-ips_soundboard = ["marketdata/*.yaml"]
+ips_soundboard = ["marketdata/*.yaml", "risk/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
