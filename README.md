@@ -2,7 +2,7 @@
 
 Review a portfolio against its own Investment Policy Statement (IPS): allocation drift, rule breaches, concentration and risk, with a written analysis.
 
-> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo) and the risk analyser are in place.
+> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo), the risk analyser and a Streamlit dashboard are in place.
 
 ## What it does (target MVP)
 
@@ -45,6 +45,7 @@ docs/architecture.md
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
+streamlit run app/dashboard.py     # dashboard; pick "Demo: sample investor" in the sidebar
 ```
 
 Validate an IPS config:
