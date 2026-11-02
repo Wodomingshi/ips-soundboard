@@ -9,20 +9,17 @@ from __future__ import annotations
 
 import argparse
 import logging
-import warnings
 from datetime import date
 
 from ips_soundboard.holdings import load_holdings
 from ips_soundboard.marketdata.snapshot import load_snapshot, save_snapshot, take_snapshot
-from ips_soundboard.marketdata.yahoo import YahooProvider
+from ips_soundboard.marketdata.yahoo import YahooProvider, quiet_yfinance_warnings
 
 CACHE_DIR = "data/cache"
 
 
 def main() -> None:
-    # yfinance (not this project) triggers pandas deprecation warnings; matched by message
-    # because pandas attributes them to varying modules
-    warnings.filterwarnings("ignore", message=r"The inplace keyword")
+    quiet_yfinance_warnings()
     # show why an individual symbol failed (logged by the Yahoo client)
     logging.basicConfig(level=logging.WARNING, format="  ! %(message)s")
 

@@ -7,6 +7,7 @@ recorded data. Failures for one symbol never stop the others.
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import Sequence
 from datetime import date, timedelta
 from typing import Protocol
@@ -17,6 +18,17 @@ from ips_soundboard.marketdata.base import Quote, normalise_quote
 from ips_soundboard.marketdata.tickers import to_provider_symbol
 
 log = logging.getLogger(__name__)
+
+
+def quiet_yfinance_warnings() -> None:
+    """Hide pandas deprecation warnings raised inside yfinance's own code (for CLIs and apps).
+
+    yfinance re-enables DeprecationWarnings for its modules when imported, and the
+    newest filter wins. So yfinance is imported first, then this narrower filter is added.
+    """
+    import yfinance  # noqa: F401  (import for its side effect on warning filters)
+
+    warnings.filterwarnings("ignore", message=r"The inplace keyword", category=DeprecationWarning)
 
 
 class YahooClient(Protocol):

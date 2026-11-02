@@ -135,3 +135,20 @@ def test_fake_history_window() -> None:
     closes = pd.DataFrame({"X": [1.0, 2.0, 3.0]}, index=pd.to_datetime(["2026-01-01", "2026-01-02", "2026-01-03"]))
     window = FakeProvider(closes=closes).history(["X", "Y"], date(2026, 1, 2), date(2026, 1, 3))
     assert list(window["X"]) == [2.0, 3.0] and list(window.columns) == ["X"]
+
+
+def test_yfinance_pandas_warnings_are_silenced_after_yfinance_import() -> None:
+    """yfinance re-enables DeprecationWarnings for its modules on import; ours must win."""
+    import warnings
+
+    from ips_soundboard.marketdata.yahoo import quiet_yfinance_warnings
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("default")
+        quiet_yfinance_warnings()
+        warnings.warn_explicit("The inplace keyword in DataFrame.rename is deprecated", DeprecationWarning,
+                               filename="yfinance/multi.py", lineno=220, module="yfinance.multi")
+        warnings.warn_explicit("Something else is deprecated", DeprecationWarning,
+                               filename="yfinance/multi.py", lineno=221, module="yfinance.multi")
+    messages = [str(w.message) for w in caught]
+    assert messages == ["Something else is deprecated"]  # only the pandas 'inplace' noise is hidden
