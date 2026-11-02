@@ -19,8 +19,9 @@ Any figure in a report must be traceable to an engine or risk function. The narr
 2. Holdings schema and loader (CSV) ✅
 3. Engine: valuation in base currency, weights, drift vs SAA, limit checks ✅
 4. Market data: prices and FX (swappable provider) ✅
-5. Risk analyser
-6. IPS extraction (LLM)
-7. Holdings classification (LLM)
-8. Report (LLM narrative + tables)
-9. Quarterly allocation of new savings ("where to invest this quarter")
+5. Risk analyser ✅
+6. Dashboard (Streamlit)
+7. IPS extraction (LLM)
+8. Holdings classification (LLM)
+9. Report (LLM narrative + tables)
+10. Quarterly allocation of new savings ("where to invest this quarter")

@@ -2,7 +2,7 @@
 
 Review a portfolio against its own Investment Policy Statement (IPS): allocation drift, rule breaches, concentration and risk, with a written analysis.
 
-> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo) are in place.
+> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo) and the risk analyser are in place.
 
 ## What it does (target MVP)
 
@@ -59,6 +59,12 @@ Fetch live prices and FX for a holdings file (needs internet; cached per day in 
 
 ```bash
 python -m ips_soundboard.marketdata examples/sample_investor_eur/holdings.csv --base EUR
+```
+
+Risk report (volatility, drawdown, historical VaR/CVaR, risk contribution, FX exposure, stress tests):
+
+```bash
+python -m ips_soundboard.risk examples/sample_investor_eur/holdings.csv examples/sample_investor_eur/ips.yaml
 ```
 
 Tickers use the `EXCHANGE:SYMBOL` format (e.g. `SWX:NESN`, `NYSEARCA:VPU`). Exchange codes are mapped to provider symbols in `src/ips_soundboard/marketdata/exchanges.yaml`.

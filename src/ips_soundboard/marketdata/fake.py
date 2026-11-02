@@ -16,10 +16,12 @@ class FakeProvider:
         quotes: Mapping[str, Quote] | None = None,
         fx: Mapping[str, float] | None = None,
         closes: pd.DataFrame | None = None,
+        fx_closes: pd.DataFrame | None = None,
     ) -> None:
         self.quotes = dict(quotes or {})
         self.fx = dict(fx or {})
         self.closes = closes if closes is not None else pd.DataFrame()
+        self.fx_closes = fx_closes if fx_closes is not None else pd.DataFrame()
 
     def latest_prices(self, tickers: Sequence[str]) -> dict[str, Quote]:
         return {t: self.quotes[t] for t in tickers if t in self.quotes}
@@ -28,7 +30,14 @@ class FakeProvider:
         return {c: self.fx[c] for c in currencies if c != base and c in self.fx}
 
     def history(self, tickers: Sequence[str], start: date, end: date) -> pd.DataFrame:
-        if self.closes.empty:
-            return self.closes
-        window = self.closes.loc[pd.Timestamp(start):pd.Timestamp(end)]
-        return window[[t for t in tickers if t in window.columns]]
+        return _window(self.closes, tickers, start, end)
+
+    def fx_history(self, currencies: Sequence[str], base: str, start: date, end: date) -> pd.DataFrame:
+        return _window(self.fx_closes, [c for c in currencies if c != base], start, end)
+
+
+def _window(frame: pd.DataFrame, columns: Sequence[str], start: date, end: date) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    window = frame.loc[pd.Timestamp(start):pd.Timestamp(end)]
+    return window[[c for c in columns if c in window.columns]]

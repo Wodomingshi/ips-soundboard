@@ -142,6 +142,15 @@ class Rebalancing(_Strict):
     min_trade: float = Field(default=0.0, ge=0.0)
 
 
+class RiskSettings(_Strict):
+    """How risk is measured. Defaults: 5 years of daily data, 95% one-month historical VaR."""
+
+    lookback_years: float = Field(default=5.0, gt=0.0, le=30.0)
+    var_confidence: float = Field(default=0.95, gt=0.5, lt=1.0)
+    var_horizon_days: int = Field(default=21, ge=1, le=260)  # trading days; 21 = about one month
+    min_history_share: float = Field(default=0.8, gt=0.0, le=1.0)  # of the lookback window
+
+
 class IPS(_Strict):
     """Top-level, machine-readable IPS."""
 
@@ -155,6 +164,7 @@ class IPS(_Strict):
     exclusions: Exclusions = Exclusions()
     taa: TAAPolicy = TAAPolicy()
     rebalancing: Rebalancing = Rebalancing()
+    risk: RiskSettings = RiskSettings()
 
     @field_validator("saa")
     @classmethod

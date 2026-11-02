@@ -42,3 +42,7 @@ class MarketData(Protocol):
     def history(self, tickers: Sequence[str], start: date, end: date) -> pd.DataFrame:
         """Daily closes: index = dates, columns = canonical tickers, in each ticker's quote currency."""
         ...
+
+    def fx_history(self, currencies: Sequence[str], base: str, start: date, end: date) -> pd.DataFrame:
+        """Daily FX: index = dates, columns = currencies, values = base units per 1 unit."""
+        ...

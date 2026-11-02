@@ -1,0 +1,11 @@
+# Historical stress periods. A scenario is reported only if the price history
+# covers it. Dates are approximate peak-to-trough windows of global equities.
+- name: "2022 rate shock (inflation, rapid rate hikes)"
+  start: 2022-01-03
+  end: 2022-10-12
+- name: "2025 tariff sell-off"
+  start: 2025-02-19
+  end: 2025-04-08
+- name: "2020 Covid crash"
+  start: 2020-02-19
+  end: 2020-03-23
