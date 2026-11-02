@@ -109,13 +109,16 @@ class SleeveTiltBudget(_Strict):
 
 class ThemeBudget(_Strict):
     max_total: Fraction
-    max_per_theme: Fraction
+    max_per_theme: Fraction  # buy limit: above it, no adds
     max_count: int = Field(ge=0)
+    hard_limit_per_theme: Fraction | None = None  # above it, trim
 
     @model_validator(mode="after")
-    def _per_theme_within_total(self) -> ThemeBudget:
+    def _limits_are_ordered(self) -> ThemeBudget:
         if self.max_per_theme > self.max_total:
             raise ValueError("max_per_theme cannot exceed max_total")
+        if self.hard_limit_per_theme is not None and self.hard_limit_per_theme < self.max_per_theme:
+            raise ValueError("hard_limit_per_theme cannot be below max_per_theme")
         return self
 
 
