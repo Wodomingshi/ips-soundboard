@@ -7,20 +7,17 @@ from __future__ import annotations
 
 import argparse
 import logging
-import warnings
 
 from ips_soundboard.engine.valuation import value_holdings
 from ips_soundboard.holdings import load_holdings
 from ips_soundboard.marketdata.snapshot import take_snapshot
-from ips_soundboard.marketdata.yahoo import YahooProvider
+from ips_soundboard.marketdata.yahoo import YahooProvider, quiet_yfinance_warnings
 from ips_soundboard.risk.analysis import RiskReport, analyse_risk
 from ips_soundboard.schemas.ips import load_ips
 
 
 def main() -> None:
-    # yfinance (not this project) triggers pandas deprecation warnings; matched by message
-    # because pandas attributes them to varying modules
-    warnings.filterwarnings("ignore", message=r"The inplace keyword")
+    quiet_yfinance_warnings()
     logging.basicConfig(level=logging.WARNING, format="  ! %(message)s")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("holdings")
