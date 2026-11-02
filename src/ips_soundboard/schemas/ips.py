@@ -189,5 +189,9 @@ class IPS(_Strict):
 def load_ips(path: str | Path) -> IPS:
     """Read and validate an IPS config from a YAML file."""
     with Path(path).open(encoding="utf-8") as handle:
-        raw = yaml.safe_load(handle)
-    return IPS.model_validate(raw)
+        return parse_ips(handle.read())
+
+
+def parse_ips(text: str) -> IPS:
+    """Validate an IPS config from YAML text (e.g. an uploaded file)."""
+    return IPS.model_validate(yaml.safe_load(text))

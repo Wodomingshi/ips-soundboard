@@ -1,5 +1,8 @@
 # Historical stress periods. A scenario is reported only if the price history
 # covers it. Dates are approximate peak-to-trough windows of global equities.
+#
+# The names are human-written labels, not something the tool detects: the tool
+# only compounds today's portfolio between `start` and `end`. Edit freely.
 - name: "2022 rate shock (inflation, rapid rate hikes)"
   start: 2022-01-03
   end: 2022-10-12

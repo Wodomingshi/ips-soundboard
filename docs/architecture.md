@@ -10,8 +10,11 @@
 | `engine` | Prices, FX, valuation, weights, drift, limit checks, TAA trend rules | No |
 | `risk` | Volatility, drawdown, historical VaR/CVaR, risk contribution by sleeve | No |
 | `report` | Narrative written from engine/risk output only | Yes; may only cite numbers it is given |
+| `dashboard` + `app/` | Streamlit UI; displays pipeline output, computes nothing itself | No |
 
 ## Rule: no number originates in an LLM
+The same applies to explanations: scenario names (e.g. "2022 rate shock") are labels in `risk/scenarios.yaml`, not something the tool infers, and the narrative may not invent causes beyond them.
+
 Any figure in a report must be traceable to an engine or risk function. The narrative step receives a JSON of computed facts and is checked afterwards: every number in the text must appear in that JSON.
 
 ## Module order
@@ -20,7 +23,7 @@ Any figure in a report must be traceable to an engine or risk function. The narr
 3. Engine: valuation in base currency, weights, drift vs SAA, limit checks ✅
 4. Market data: prices and FX (swappable provider) ✅
 5. Risk analyser ✅
-6. Dashboard (Streamlit)
+6. Dashboard (Streamlit) ✅
 7. IPS extraction (LLM)
 8. Holdings classification (LLM)
 9. Report (LLM narrative + tables)

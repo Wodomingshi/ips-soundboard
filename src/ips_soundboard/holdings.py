@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import csv
+import io
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -36,17 +38,26 @@ class Issue:
 def load_holdings(path: str | Path) -> list[Holding]:
     """Read a holdings CSV. Row numbers in errors match a spreadsheet (header = row 1)."""
     with Path(path).open(encoding="utf-8-sig", newline="") as handle:
-        reader = csv.DictReader(handle)
-        _check_columns(reader.fieldnames or [])
-        holdings, problems = [], []
-        for row_number, row in enumerate(reader, start=2):
-            cleaned = {key: value for key, value in row.items() if value not in ("", None)}
-            if not cleaned:
-                continue  # blank line
-            try:
-                holdings.append(Holding.model_validate(cleaned))
-            except ValidationError as error:
-                problems.extend(_describe(row_number, error))
+        return _read(handle)
+
+
+def parse_holdings(text: str) -> list[Holding]:
+    """Same as load_holdings, from CSV text (e.g. an uploaded file)."""
+    return _read(io.StringIO(text.lstrip("\ufeff"), newline=""))
+
+
+def _read(lines: Iterable[str]) -> list[Holding]:
+    reader = csv.DictReader(lines)
+    _check_columns(reader.fieldnames or [])
+    holdings, problems = [], []
+    for row_number, row in enumerate(reader, start=2):
+        cleaned = {key: value for key, value in row.items() if value not in ("", None)}
+        if not cleaned:
+            continue  # blank line
+        try:
+            holdings.append(Holding.model_validate(cleaned))
+        except ValidationError as error:
+            problems.extend(_describe(row_number, error))
     if problems:
         raise HoldingsFileError(problems)
     return holdings
