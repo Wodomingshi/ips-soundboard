@@ -1,0 +1,45 @@
+# Machine-readable version of examples/sample_investor_eur/IPS.md (fictional investor).
+version: "1.0"
+base_currency: EUR
+
+objectives:
+  real_return_target: 0.03
+  design_max_drawdown: -0.30
+
+liquidity:
+  monthly_expenses_max: 3500
+  min_months_of_expenses: 6
+
+scope:
+  managed: [brokerage]
+  reported_only: [company_pension]
+
+saa:
+  eu_equity:            {target: 0.25, min: 0.20, max: 0.30}
+  world_ex_eu_equity:   {target: 0.35, min: 0.30, max: 0.40}
+  em_equity:            {target: 0.05, min: 0.02, max: 0.08}
+  eur_govt_bonds:       {target: 0.25, min: 0.20, max: 0.30}
+  gold:                 {target: 0.05, min: 0.02, max: 0.08}
+  cash:                 {target: 0.05, min: 0.00, max: 0.10}
+
+limits:
+  single_name_buy_limit: 0.05
+  single_name_hard_limit: 0.08
+  picks_max_total: 0.20
+  leverage_allowed: false
+  short_selling_allowed: false
+  derivatives_allowed: false
+  leveraged_or_inverse_etfs_allowed: false
+
+exclusions:
+  apply_to: direct_holdings
+  sub_industries: [tobacco]
+
+taa:
+  sleeve_tilts: {max_per_sleeve: 0.03, max_total_one_way: 0.06}
+  trend: {lookback_months: 10}
+
+rebalancing:
+  monitoring_frequency: quarterly
+  calendar_rebalance: annual
+  min_trade: 1000

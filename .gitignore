@@ -1,0 +1,28 @@
+# Owner's real data: never commit
+private/*
+!private/README.md
+
+# Secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# Data caches and outputs
+data/cache/
+reports/out/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

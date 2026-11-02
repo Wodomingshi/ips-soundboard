@@ -1,0 +1,10 @@
+name,ticker,account,quantity,currency,purchase_date,purchase_price
+iShares Core MSCI Europe UCITS ETF,IMEU.AS,brokerage,900,EUR,2023-03-15,28.10
+iShares Core S&P 500 UCITS ETF,SXR8.DE,brokerage,60,EUR,2022-11-02,410.00
+iShares Core MSCI EM IMI UCITS ETF,EIMI.AS,brokerage,300,EUR,2024-01-10,29.80
+iShares Core Euro Government Bond UCITS ETF,IEGA.AS,brokerage,180,EUR,2023-06-20,108.50
+Xetra-Gold,4GLD.DE,brokerage,90,EUR,2024-05-02,68.00
+SAP SE,SAP.DE,brokerage,40,EUR,2023-09-12,124.00
+ASML Holding,ASML.AS,brokerage,12,EUR,2024-02-08,780.00
+Cash EUR,,brokerage,6500,EUR,,
+Company pension,,company_pension,1,EUR,,
