@@ -20,8 +20,9 @@ CACHE_DIR = "data/cache"
 
 
 def main() -> None:
-    # yfinance triggers pandas deprecation warnings internally; they are not ours to fix
-    warnings.filterwarnings("ignore", module=r"yfinance(\..*)?$")
+    # yfinance (not this project) triggers pandas deprecation warnings; matched by message
+    # because pandas attributes them to varying modules
+    warnings.filterwarnings("ignore", message=r"The inplace keyword")
     # show why an individual symbol failed (logged by the Yahoo client)
     logging.basicConfig(level=logging.WARNING, format="  ! %(message)s")
 
