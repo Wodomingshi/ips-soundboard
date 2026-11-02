@@ -1,0 +1,84 @@
+"""Schema for portfolio holdings.
+
+One row per purchase lot, so cost basis survives for later tax-lot work.
+Classification fields (instrument_type, sleeve, role) are optional: an
+unclassified holding is valid input, and the classifier module fills the gaps.
+
+Prices and FX are not part of a holding. They come from the market-data layer;
+manual_price and manual_value are fallbacks for assets with no live quote.
+"""
+
+from __future__ import annotations
+
+import re
+from datetime import date
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+InstrumentType = Literal["stock", "etf", "fund", "bond", "cash", "commodity", "pension", "other"]
+
+# How a holding is governed by the IPS:
+#   core      - implements an SAA sleeve (index funds, or direct holdings used as an index)
+#   satellite - a conviction pick, subject to the single-stock caps
+#   theme     - a TAA theme, subject to the theme budget
+Role = Literal["core", "satellite", "theme"]
+
+_SNAKE = re.compile(r"^[a-z][a-z0-9_]*$")
+
+
+def _to_snake(value: str) -> str:
+    return re.sub(r"[\s\-]+", "_", value.strip().lower())
+
+
+class Holding(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    name: str = Field(min_length=1)
+    account: str
+    currency: str = Field(pattern=r"^[A-Z]{3}$")
+    ticker: str | None = None
+    quantity: float | None = Field(default=None, ge=0.0)
+    manual_price: float | None = Field(default=None, gt=0.0)
+    manual_value: float | None = None
+    instrument_type: InstrumentType | None = None
+    sleeve: str | None = None
+    role: Role | None = None
+    purchase_date: date | None = None
+    purchase_price: float | None = Field(default=None, ge=0.0)
+
+    @field_validator("name", "ticker", mode="before")
+    @classmethod
+    def _strip(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("account", "sleeve", mode="before")
+    @classmethod
+    def _normalise_id(cls, value: object) -> object:
+        """'Pillar 3a' -> 'pillar_3a', so account and sleeve names match the IPS."""
+        return _to_snake(value) if isinstance(value, str) else value
+
+    @field_validator("account", "sleeve")
+    @classmethod
+    def _check_id(cls, value: str | None) -> str | None:
+        if value is not None and not _SNAKE.match(value):
+            raise ValueError(f"'{value}' must start with a letter and use only letters, digits and _")
+        return value
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def _normalise_currency(cls, value: object) -> object:
+        return value.strip().upper() if isinstance(value, str) else value
+
+    @field_validator("instrument_type", "role", mode="before")
+    @classmethod
+    def _lower(cls, value: object) -> object:
+        return value.strip().lower() if isinstance(value, str) else value
+
+    @model_validator(mode="after")
+    def _has_a_way_to_be_valued(self) -> Holding:
+        if self.quantity is None and self.manual_value is None:
+            raise ValueError("needs a quantity or a manual_value")
+        if self.purchase_price is not None and self.quantity is None:
+            raise ValueError("purchase_price needs a quantity")
+        return self
