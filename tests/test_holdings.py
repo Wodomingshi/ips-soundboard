@@ -52,7 +52,7 @@ def test_unknown_instrument_type_is_rejected() -> None:
 def test_sample_holdings_load() -> None:
     holdings = load_holdings(SAMPLE_DIR / "holdings.csv")
     assert len(holdings) == 9
-    sap = next(h for h in holdings if h.ticker == "SAP.DE")
+    sap = next(h for h in holdings if h.ticker == "ETR:SAP")
     assert sap.role == "satellite"
     assert sap.purchase_date == date(2023, 9, 12)
 

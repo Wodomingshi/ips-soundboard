@@ -2,7 +2,7 @@
 
 Review a portfolio against its own Investment Policy Statement (IPS): allocation drift, rule breaches, concentration and risk, with a written analysis.
 
-> **Status:** early development. Module 1 (the IPS schema) is in place.
+> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo) are in place.
 
 ## What it does (target MVP)
 
@@ -54,6 +54,14 @@ from ips_soundboard.schemas.ips import load_ips
 ips = load_ips("examples/sample_investor_eur/ips.yaml")
 print(ips.saa)
 ```
+
+Fetch live prices and FX for a holdings file (needs internet; cached per day in `data/cache/`):
+
+```bash
+python -m ips_soundboard.marketdata examples/sample_investor_eur/holdings.csv --base EUR
+```
+
+Tickers use the `EXCHANGE:SYMBOL` format (e.g. `SWX:NESN`, `NYSEARCA:VPU`). Exchange codes are mapped to provider symbols in `src/ips_soundboard/marketdata/exchanges.yaml`.
 
 ## Disclaimer
 

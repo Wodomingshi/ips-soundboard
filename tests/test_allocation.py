@@ -15,8 +15,8 @@ SAMPLE_DIR = ROOT / "examples" / "sample_investor_eur"
 PRIVATE_DIR = ROOT / "private"
 
 SAMPLE_PRICES = {
-    "IMEU.AS": 30.0, "SXR8.DE": 500.0, "EIMI.AS": 32.0, "IEGA.AS": 110.0,
-    "4GLD.DE": 80.0, "SAP.DE": 200.0, "ASML.AS": 700.0,
+    "AMS:IMEU": 30.0, "ETR:SXR8": 500.0, "AMS:EIMI": 32.0, "AMS:IEGA": 110.0,
+    "ETR:4GLD": 80.0, "ETR:SAP": 200.0, "AMS:ASML": 700.0,
 }
 
 
