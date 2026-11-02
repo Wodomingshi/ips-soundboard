@@ -48,6 +48,7 @@ class StressResult:
     start: date
     end: date
     portfolio_return: float
+    coverage: float  # share of the managed portfolio with history for this period
 
 
 @dataclass(frozen=True)
@@ -151,7 +152,7 @@ def analyse_risk(valued: Sequence[ValuedHolding], ips: IPS, provider: MarketData
         by_holding=_by_holding(included, weights, shares),
         by_sleeve=_by_sleeve(included, weights, shares),
         currency_exposure=_currency_exposure(positions),
-        stress=_stress(r_p),
+        stress=_stress(returns, included),
         excluded=sorted(excluded, key=lambda e: -e.weight),
     )
 
@@ -229,10 +230,23 @@ def load_scenarios() -> list[dict]:
         return yaml.safe_load(handle)
 
 
-def _stress(portfolio: pd.Series) -> list[StressResult]:
+def _stress(returns: pd.DataFrame, positions: list[_Position]) -> list[StressResult]:
+    """Each scenario uses every position with full history over that period (weights rescaled).
+
+    Computed separately from the main sample, whose start is set by the youngest
+    series: a fund listed in late January 2022 must not hide the whole 2022 shock.
+    """
     results = []
     for s in load_scenarios():
-        outcome = metrics.period_return(portfolio, pd.Timestamp(s["start"]), pd.Timestamp(s["end"]))
-        if outcome is not None:
-            results.append(StressResult(s["name"], s["start"], s["end"], outcome))
+        start, end = pd.Timestamp(s["start"]), pd.Timestamp(s["end"])
+        if returns.empty or returns.index[0] > start or returns.index[-1] < end:
+            continue
+        window = returns.loc[start:end, [p.key for p in positions]]
+        complete = [p for p in positions if window[p.key].notna().all()]
+        covered = sum(p.weight for p in complete)
+        if not complete or covered <= 0:
+            continue
+        weights = pd.Series({p.key: p.weight / covered for p in complete})
+        path = metrics.portfolio_returns(window[weights.index], weights)
+        results.append(StressResult(s["name"], s["start"], s["end"], float((1.0 + path).prod() - 1.0), covered))
     return results

@@ -18,7 +18,9 @@ from ips_soundboard.schemas.ips import load_ips
 
 
 def main() -> None:
-    warnings.filterwarnings("ignore", module=r"yfinance(\..*)?$")
+    # yfinance (not this project) triggers pandas deprecation warnings; matched by message
+    # because pandas attributes them to varying modules
+    warnings.filterwarnings("ignore", message=r"The inplace keyword")
     logging.basicConfig(level=logging.WARNING, format="  ! %(message)s")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("holdings")
@@ -55,7 +57,8 @@ def print_report(r: RiskReport) -> None:
     if r.stress:
         print("\n  Stress tests (today's portfolio through past crises)")
         for s in r.stress:
-            print(f"    {s.portfolio_return:7.1%}   {s.name} ({s.start} to {s.end})")
+            print(f"    {s.portfolio_return:7.1%}   {s.name} ({s.start} to {s.end}; "
+                  f"covers {s.coverage:.0%} of the portfolio)")
     if r.excluded:
         print("\n  Not included in the risk numbers")
         for e in r.excluded:

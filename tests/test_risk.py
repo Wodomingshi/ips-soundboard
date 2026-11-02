@@ -185,3 +185,24 @@ def test_nothing_to_measure_raises(ips: IPS) -> None:
 
 def test_risk_settings_come_from_the_ips(ips: IPS) -> None:
     assert (ips.risk.lookback_years, ips.risk.var_confidence, ips.risk.var_horizon_days) == (5.0, 0.95, 21)
+
+
+def test_late_listed_fund_does_not_hide_a_stress_scenario(ips: IPS) -> None:
+    """A fund listed 20 Jan 2022 is included (enough history) but starts the main sample late.
+    The 2022 scenario (from 3 Jan) must still run, on the positions that cover it."""
+    market = fake_market()
+    market.closes["NYSE:LATE"] = market.closes["NYSE:WILD"] * 0.5
+    market.closes.loc[: pd.Timestamp("2022-01-19"), "NYSE:LATE"] = np.nan
+    holdings = [
+        holding("Calm CH", 60_000, "CHF", ticker="SWX:CALM", sleeve="ch_equity"),
+        holding("Late US", 40_000, "CHF", ticker="NYSE:LATE", sleeve="us_equity"),
+    ]
+    valued = value_holdings(holdings, {}, {}, "CHF")
+    report = analyse_risk(valued, ips, market, as_of=date(2026, 10, 30))
+    assert report.window_start >= date(2022, 1, 20)
+    stress_2022 = next(s for s in report.stress if s.name.startswith("2022"))
+    assert stress_2022.coverage == pytest.approx(0.60)
+
+
+def test_full_coverage_stress_reports_one(report) -> None:
+    assert all(0 < s.coverage <= 1 for s in report.stress)
