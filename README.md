@@ -2,7 +2,7 @@
 
 Review a portfolio against its own Investment Policy Statement (IPS): allocation drift, rule breaches, concentration and risk, with a written analysis.
 
-> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo), the risk analyser, the quarterly new-money plan and a Streamlit dashboard are in place.
+> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo), the risk analyser, the quarterly new-money plan, a Streamlit dashboard and LLM extraction of an IPS document into a validated config are in place.
 
 ## What it does (target MVP)
 
@@ -73,6 +73,23 @@ Where to invest new savings (cash reserve first, then the SAA sleeves furthest b
 ```bash
 python -m ips_soundboard.contribute examples/sample_investor_eur/holdings.csv examples/sample_investor_eur/ips.yaml --amount 9000
 ```
+
+### Extract an IPS document with Claude
+
+Turns a free-text IPS (Markdown, text or PDF) into a **draft** `ips.yaml` plus a review report. Install with `pip install -e ".[llm]"` and set `ANTHROPIC_API_KEY` (a Codespaces secret, or a git-ignored `.env` file).
+
+```bash
+python -m ips_soundboard.extract examples/sample_investor_eur/IPS.md --compare examples/sample_investor_eur/ips.yaml
+```
+
+The model only reads; code checks everything it returns:
+- values are copied as written ("25%") and converted by code, never by the model;
+- every value carries a verbatim quote, and the quote must appear in the document;
+- every number must appear in its own quote;
+- the result must pass the IPS schema, with one automatic retry that sends the errors back;
+- settings the document does not state are listed, never guessed.
+
+`--compare` diffs the draft against a hand-written config: the sample investor doubles as a benchmark. The draft (`ips.draft.yaml`, git-ignored) is for you to review before renaming it to `ips.yaml`. Running it on your own IPS sends the document to the Anthropic API.
 
 Tickers use the `EXCHANGE:SYMBOL` format (e.g. `SWX:NESN`, `NYSEARCA:VPU`). Exchange codes are mapped to provider symbols in `src/ips_soundboard/marketdata/exchanges.yaml`.
 
