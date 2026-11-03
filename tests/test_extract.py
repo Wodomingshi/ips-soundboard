@@ -23,8 +23,9 @@ def rule(setting: str, value: str, quote: str) -> RuleDraft:
     return RuleDraft(setting=setting, value=value, quote=quote)
 
 
-def sleeve(name: str, target: str, low: str, high: str) -> SleeveDraft:
-    return SleeveDraft(name=name, target=target, min=low, max=high, quote=f"| {name} | {target} | {low[:-1]}–{high} |")
+def sleeve(name: str, target: str, low: str, high: str, id: str = "") -> SleeveDraft:
+    return SleeveDraft(name=name, id=id, target=target, min=low, max=high,
+                       quote=f"| {name} | {target} | {low[:-1]}–{high} |")
 
 
 NO_LEVERAGE = "No leverage, short selling, derivatives or leveraged/inverse ETFs."
@@ -40,7 +41,7 @@ GOLDEN = IPSDraft(
         rule("objectives.design_max_drawdown", "-30%", "Accept a peak-to-trough loss of up to 30% in a severe crisis"),
         rule("liquidity.monthly_expenses_max", "3,500", "Monthly expenses are at most EUR 3,500."),
         rule("liquidity.min_months_of_expenses", "6", "Keep at least 6 months of expenses in cash"),
-        rule("scope.managed", "brokerage", "The SAA applies to her brokerage account."),
+        rule("scope.managed", "brokerage account", "The SAA applies to her brokerage account."),
         rule("scope.reported_only", "company pension", "Her company pension is reported but not managed."),
         rule("limits.single_name_buy_limit", "5%", "No single stock above 5% of the portfolio when buying"),
         rule("limits.single_name_hard_limit", "8%", "anything above 8% is trimmed"),
@@ -221,3 +222,49 @@ def test_live_extraction_of_the_sample_ips() -> None:
     assert result.ips is not None, result.errors
     comparison = compare(result.data, REFERENCE)
     assert comparison.differences == [], comparison.differences
+
+
+# --- tuning from the first live runs -------------------------------------------------
+
+def test_account_names_drop_the_word_account() -> None:
+    assert convert(GOLDEN, DOCUMENT).data["scope"]["managed"] == ["brokerage"]
+
+
+def test_excluded_industries_must_be_vocabulary_ids() -> None:
+    rules = GOLDEN.rules + [rule("exclusions.sub_industries", "integrated oil & gas",
+                                 "No direct holdings in tobacco companies.")]
+    errors = convert(edited(GOLDEN, rules=rules), DOCUMENT).errors
+    assert any("not an industry id" in e for e in errors)
+
+
+def test_holdings_sleeve_ids_are_reused_and_mismatches_reported() -> None:
+    sleeves = [sleeve("European equities", "25%", "20%", "30%", id="eu_equity")] + GOLDEN.sleeves[1:]
+    result = convert(edited(GOLDEN, sleeves=sleeves), DOCUMENT,
+                     known_sleeves=["eu_equity", "world_ex_eu_equity"], known_accounts=["brokerage"])
+    assert "eu_equity" in result.data["saa"]
+    assert any("'world_equities_ex_europe': no holding uses it" in m for m in result.holdings_check)
+    assert any("company_pension" in m for m in result.holdings_check)  # not in the known accounts
+
+
+def test_unknown_sleeve_id_from_the_model_is_not_used() -> None:
+    sleeves = [sleeve("European equities", "25%", "20%", "30%", id="made_up")] + GOLDEN.sleeves[1:]
+    result = convert(edited(GOLDEN, sleeves=sleeves), DOCUMENT, known_sleeves=["eu_equity"])
+    assert "european_equities" in result.data["saa"]
+    assert any("'made_up' is not in the holdings file" in n for n in result.notes)
+
+
+def test_comparison_skips_tool_settings_that_are_never_extracted() -> None:
+    reference = {**REFERENCE, "liquidity": {**REFERENCE["liquidity"], "reserve_sleeve": "reserve"}}
+    assert compare(convert(GOLDEN, DOCUMENT).data, reference).differences == []
+
+
+def test_first_attempt_errors_are_kept_for_the_report() -> None:
+    result = extract_ips(DOCUMENT, FakeClient(edited(GOLDEN, sleeves=GOLDEN.sleeves[:-1]), GOLDEN), model="m")
+    assert result.first_attempt_errors and "fixed on retry" in "\n".join(report_lines(result))
+
+
+def test_known_ids_are_offered_to_the_model() -> None:
+    client = FakeClient(GOLDEN)
+    extract_ips(DOCUMENT, client, model="m", known_sleeves=["eu_equity"], known_accounts=["brokerage"])
+    prompt = client.calls[0]["messages"][0]["content"]
+    assert "- sleeves: eu_equity" in prompt and "- accounts: brokerage" in prompt

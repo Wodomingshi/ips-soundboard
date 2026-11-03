@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from ips_soundboard.extract.settings import extractable
+
 IGNORED = ("version",)  # bookkeeping, not policy
 
 
@@ -42,8 +44,8 @@ def compare(extracted: dict[str, Any], reference: dict[str, Any]) -> Comparison:
 
     differences, matching = [], 0
     for path in sorted(set(flat_ext) | set(flat_ref)):
-        if path in IGNORED:
-            continue
+        if path in IGNORED or not extractable(path):
+            continue  # bookkeeping, or a tool setting that is never extracted
         a, b = flat_ext.get(path), flat_ref.get(path)
         if _same(a, b):
             matching += 1
