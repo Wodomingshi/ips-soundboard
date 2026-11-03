@@ -75,9 +75,10 @@ class FakeClient:
         self.replies, self.calls, self.stop_reason = list(replies), [], stop_reason
         self.messages = self
 
-    def parse(self, **request):
+    def create(self, **request):
         self.calls.append(request)
-        return SimpleNamespace(parsed_output=self.replies.pop(0), stop_reason=self.stop_reason)
+        text = SimpleNamespace(type="text", text=self.replies.pop(0).model_dump_json())
+        return SimpleNamespace(content=[text], stop_reason=self.stop_reason)
 
 
 # --- settings and schema --------------------------------------------------------
@@ -172,7 +173,7 @@ def test_valid_first_reply_needs_one_call() -> None:
     result = extract_ips(DOCUMENT, client, model="test-model")
     assert result.ips is not None and result.attempts == 1 and len(client.calls) == 1
     request = client.calls[0]
-    assert request["output_format"] is IPSDraft and request["model"] == "test-model"
+    assert request["output_config"]["format"]["type"] == "json_schema" and request["model"] == "test-model"
     assert "<document>" in request["messages"][0]["content"]
 
 

@@ -67,9 +67,10 @@ class FakeClient:
     def __init__(self, reply) -> None:
         self.reply, self.calls, self.messages = reply, [], self
 
-    def parse(self, **request):
+    def create(self, **request):
         self.calls.append(request)
-        return SimpleNamespace(parsed_output=self.reply, stop_reason="end_turn")
+        text = SimpleNamespace(type="text", text=self.reply.model_dump_json())
+        return SimpleNamespace(content=[text], stop_reason="end_turn")
 
 
 # --- what is sent ------------------------------------------------------------------
