@@ -29,8 +29,10 @@ DEMO = "Demo: sample investor (fictional)"
 PRIVATE = "My files (private/ folder)"
 UPLOAD = "Upload files"
 
-PCT = st.column_config.NumberColumn(format="percent")
-AMOUNT = st.column_config.NumberColumn(format="localized")
+
+# Risk chart: the neutral measure in grey, the finding (share of risk) in one strong colour.
+NEUTRAL = "#c4c7cc"
+ACCENT = "#1f3a68"
 
 st.set_page_config(page_title="IPS Soundboard", layout="wide")
 
@@ -59,6 +61,25 @@ def analyse(holdings_text: str, ips_text: str, as_of: date) -> Analysis:
     return run_analysis(parse_holdings(holdings_text), parse_ips(ips_text), get_provider(), as_of=as_of)
 
 
+# --- tables ------------------------------------------------------------------------
+
+def show(frame: pd.DataFrame, *, pct: tuple[str, ...] = (), amounts: tuple[str, ...] = (), **kwargs) -> None:
+    """A table in the one number format: percentages to one decimal, amounts in whole units.
+
+    Values are rounded here rather than by Streamlit's presets, which truncate (37.25% -> 37.2%)
+    and would disagree with the rounded figures in the findings text.
+    """
+    frame = frame.copy()
+    config = dict(kwargs.pop("column_config", {}))
+    for column in pct:
+        frame[column] = (pd.to_numeric(frame[column]) * 100).round(1)
+        config.setdefault(column, st.column_config.NumberColumn(format="%.1f%%"))
+    for column in amounts:
+        frame[column] = pd.to_numeric(frame[column]).round(0)
+        config.setdefault(column, st.column_config.NumberColumn(format="localized"))
+    st.dataframe(frame, hide_index=True, width="stretch", column_config=config, **kwargs)
+
+
 # --- charts ------------------------------------------------------------------------
 
 def sleeve_chart(frame: pd.DataFrame) -> alt.Chart:
@@ -70,8 +91,8 @@ def sleeve_chart(frame: pd.DataFrame) -> alt.Chart:
         x="Weight:Q",
         color=alt.Color("Status:N", scale=alt.Scale(domain=["below", "within", "above"],
                                                     range=["#d62728", "#2ca02c", "#d62728"]), legend=None),
-        tooltip=[alt.Tooltip("Weight:Q", format=".1%"), alt.Tooltip("Target:Q", format=".0%"),
-                 alt.Tooltip("Min:Q", format=".0%"), alt.Tooltip("Max:Q", format=".0%")])
+        tooltip=["Sleeve", alt.Tooltip("Weight:Q", format=".1%"), alt.Tooltip("Target:Q", format=".1%"),
+                 alt.Tooltip("Min:Q", format=".1%"), alt.Tooltip("Max:Q", format=".1%")])
     target = base.mark_tick(color="black", thickness=2, size=26).encode(x="Target:Q")
     return (band + actual + target).properties(height=40 * len(saa))
 
@@ -83,7 +104,7 @@ def contribution_chart(frame: pd.DataFrame) -> alt.Chart:
         x=alt.X("value:Q", axis=alt.Axis(format="%"), title=None),
         yOffset="Measure:N",
         color=alt.Color("Measure:N", scale=alt.Scale(domain=["Weight", "Share of risk"],
-                                                     range=["#9ecae1", "#08519c"]),
+                                                     range=[NEUTRAL, ACCENT]),
                         legend=alt.Legend(orient="top", title=None)),
         tooltip=["Name", "Measure", alt.Tooltip("value:Q", format=".1%")],
     ).properties(height=34 * len(top) // 2)
@@ -99,12 +120,12 @@ def overview(a: Analysis) -> None:
         st.caption("Grey bar = allowed band, black tick = target, coloured bar = actual (red = outside band).")
         sleeves = tables.sleeve_table(a)
         st.altair_chart(sleeve_chart(sleeves), width="stretch")
-        st.dataframe(sleeves, hide_index=True, width="stretch",
-                     column_config={c: PCT for c in ["Weight", "Target", "Min", "Max", "Drift"]} | {"Value": AMOUNT})
+        show(sleeves.rename(columns={"Value": f"Value ({ccy})"}),
+             pct=("Weight", "Target", "Min", "Max", "Drift"), amounts=(f"Value ({ccy})",))
     with right:
         st.subheader("Total wealth")
-        st.dataframe(tables.wealth_table(a), hide_index=True, width="stretch",
-                     column_config={"Value": AMOUNT, "Share of total": PCT})
+        wealth = tables.wealth_table(a).rename(columns={"Value": f"Value ({ccy})", "Share of total": "Share"})
+        show(wealth, pct=("Share",), amounts=(f"Value ({ccy})",))
         reserve = a.allocation
         if reserve.reserve_ok is not None:
             text = (f"Cash reserve {reserve.reserve_value:,.0f} {ccy} vs required "
@@ -134,9 +155,8 @@ def rules(a: Analysis) -> None:
 
 def holdings(a: Analysis) -> None:
     ccy = a.ips.base_currency
-    st.dataframe(tables.holdings_table(a), hide_index=True, width="stretch", height=600,
-                 column_config={"Value (local)": AMOUNT, f"Value ({ccy})": AMOUNT,
-                                "Weight": PCT, "Return (local)": PCT})
+    show(tables.holdings_table(a), height=600, pct=("Weight", "Return (local)"),
+         amounts=("Value (local)", f"Value ({ccy})"))
     st.caption("Weight = share of the managed portfolio. Return (local) = price return in the holding's own "
                "currency vs purchase price, excluding dividends and FX.")
 
@@ -156,7 +176,7 @@ def risk(a: Analysis) -> None:
     c3.metric(f"VaR {r.confidence:.0%}, 1 month", f"{r.var_value:,.0f} {ccy}")
     c3.caption(f"{r.var:.1%} of the covered portfolio")
     c4.metric(f"CVaR {r.confidence:.0%}, 1 month", f"{r.cvar_value:,.0f} {ccy}")
-    c4.caption(f"{r.cvar:.1%}: average loss in the worst 5% of months")
+    c4.caption(f"{r.cvar:.1%}: average loss in the worst {1 - r.confidence:.0%} of months")
 
     st.subheader("Where the risk comes from")
     st.caption("Share of risk: each holding's contribution to portfolio volatility (sums to 100%). "
@@ -165,21 +185,19 @@ def risk(a: Analysis) -> None:
     st.altair_chart(contribution_chart(by_holding), width="stretch")
     left, right = st.columns(2)
     with left:
-        st.dataframe(tables.contribution_table(a, "sleeve"), hide_index=True, width="stretch",
-                     column_config={"Weight": PCT, "Share of risk": PCT})
+        show(tables.contribution_table(a, "sleeve").rename(columns={"Name": "Sleeve"}),
+             pct=("Weight", "Share of risk"))
     with right:
         exposure = pd.DataFrame(list(r.currency_exposure.items()), columns=["Currency", "Share"])
-        st.dataframe(exposure, hide_index=True, width="stretch", column_config={"Share": PCT})
+        show(exposure, pct=("Share",))
 
     st.subheader("Stress tests")
-    st.dataframe(tables.stress_table(a), hide_index=True, width="stretch",
-                 column_config={"Portfolio return": PCT, "Coverage": PCT})
+    show(tables.stress_table(a), pct=("Portfolio return", "Coverage"))
     st.caption("Scenario names are labels defined in risk/scenarios.yaml. The tool only compounds today's "
                "portfolio between the dates; it does not know why markets moved.")
     if r.excluded:
         st.subheader("Not included in the risk numbers")
-        st.dataframe(tables.excluded_table(a), hide_index=True, width="stretch",
-                     column_config={"Weight": PCT})
+        show(tables.excluded_table(a), pct=("Weight",))
 
 
 # --- page --------------------------------------------------------------------------

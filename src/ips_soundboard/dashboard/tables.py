@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 
 from ips_soundboard.dashboard.pipeline import Analysis
+from ips_soundboard.display import label
 
 PRICE_SOURCE_LABEL = {
     "live": "live price",
@@ -28,9 +29,9 @@ def wealth_table(a: Analysis) -> pd.DataFrame:
 
 
 def sleeve_table(a: Analysis) -> pd.DataFrame:
-    rows = [{"Sleeve": s.sleeve, "Weight": s.weight, "Target": s.target, "Min": s.min, "Max": s.max,
+    rows = [{"Sleeve": label(s.sleeve), "Weight": s.weight, "Target": s.target, "Min": s.min, "Max": s.max,
              "Drift": s.drift, "Status": s.status, "Value": s.value} for s in a.allocation.sleeves]
-    rows += [{"Sleeve": f"{name} (outside SAA)", "Weight": value / a.allocation.managed_value
+    rows += [{"Sleeve": f"{label(name)} (outside SAA)", "Weight": value / a.allocation.managed_value
               if a.allocation.managed_value else 0.0, "Target": 0.0, "Min": 0.0, "Max": 0.0,
               "Drift": None, "Status": "outside SAA", "Value": value}
              for name, value in a.allocation.outside_saa.items()]
@@ -38,8 +39,9 @@ def sleeve_table(a: Analysis) -> pd.DataFrame:
 
 
 def findings_table(a: Analysis) -> pd.DataFrame:
-    return pd.DataFrame([{"Severity": f.severity, "Rule": f.rule, "Subject": f.subject, "Finding": f.message}
-                         for f in a.findings], columns=["Severity", "Rule", "Subject", "Finding"])
+    """Subject ids (tickers, sleeve ids) are left out: each message already names the holding or sleeve."""
+    return pd.DataFrame([{"Severity": f.severity, "Rule": f.rule, "Finding": f.message} for f in a.findings],
+                        columns=["Severity", "Rule", "Finding"])
 
 
 def holdings_table(a: Analysis) -> pd.DataFrame:
@@ -51,9 +53,9 @@ def holdings_table(a: Analysis) -> pd.DataFrame:
         rows.append({
             "Name": h.name,
             "Ticker": h.ticker or "",
-            "Account": h.account,
-            "Sleeve": h.sleeve or "",
-            "Role": h.role or "",
+            "Account": label(h.account),
+            "Sleeve": label(h.sleeve) if h.sleeve else "",
+            "Role": label(h.role) if h.role else "",
             "Currency": h.currency,
             "Value (local)": v.value_local,
             f"Value ({a.ips.base_currency})": v.value_base,
@@ -83,8 +85,12 @@ def risk_headline(a: Analysis) -> pd.DataFrame:
 def contribution_table(a: Analysis, by: str = "holding") -> pd.DataFrame:
     if a.risk is None:
         return pd.DataFrame()
-    rows = a.risk.by_holding if by == "holding" else a.risk.by_sleeve
-    return pd.DataFrame([{"Name": c.subject, "Weight": c.weight, "Share of risk": c.risk_share} for c in rows])
+    if by == "holding":
+        rows = [(c.subject, c) for c in a.risk.by_holding]
+    else:
+        rows = [(label(c.subject), c) for c in a.risk.by_sleeve]
+    return pd.DataFrame([{"Name": name, "Weight": c.weight, "Share of risk": c.risk_share} for name, c in rows],
+                        columns=["Name", "Weight", "Share of risk"])
 
 
 def stress_table(a: Analysis) -> pd.DataFrame:

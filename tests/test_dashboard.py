@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from ips_soundboard.display import label
 from ips_soundboard.dashboard import run_analysis, tables
 from ips_soundboard.dashboard.providers import get_provider, set_provider
 from ips_soundboard.holdings import load_holdings
@@ -50,7 +51,8 @@ def test_wealth_table_shares_sum_to_one(analysis) -> None:
 
 def test_sleeve_table_lists_saa_in_ips_order(analysis) -> None:
     frame = tables.sleeve_table(analysis)
-    assert list(frame["Sleeve"]) == list(analysis.ips.saa)
+    assert list(frame["Sleeve"]) == [label(s) for s in analysis.ips.saa]
+    assert "World ex EU equity" in set(frame["Sleeve"])
 
 
 def test_holdings_table_has_weights_only_for_managed_holdings(analysis) -> None:
