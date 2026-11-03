@@ -10,7 +10,6 @@ next to the document as ips.draft.yaml (git-ignored) unless -o is given.
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -19,6 +18,7 @@ import yaml
 from ips_soundboard.extract.compare import compare
 from ips_soundboard.extract.llm import ExtractionError, default_model, extract_ips
 from ips_soundboard.extract.output import draft_yaml, report_lines
+from ips_soundboard.llm import anthropic_client
 
 
 def main() -> None:
@@ -29,19 +29,14 @@ def main() -> None:
     parser.add_argument("--compare", metavar="IPS_YAML", help="reference ips.yaml to compare the draft with")
     args = parser.parse_args()
 
-    load_dotenv(Path(".env"))
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        sys.exit("ANTHROPIC_API_KEY is not set. Add it as a Codespaces secret or to a .env file (see README).")
-
+    client = anthropic_client()
     source = Path(args.document)
     text = read_document(source)
     model = args.model or default_model()
     print(f"Extracting {source} with {model}...")
 
-    import anthropic  # imported here so the rest of the package works without it
-
     try:
-        result = extract_ips(text, anthropic.Anthropic(), model)
+        result = extract_ips(text, client, model)
     except ExtractionError as error:
         sys.exit(f"Extraction failed: {error}")
 
@@ -62,17 +57,6 @@ def read_document(path: Path) -> str:
             sys.exit('Reading PDFs needs pypdf: pip install -e ".[llm]"')
         return "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
     return path.read_text(encoding="utf-8")
-
-
-def load_dotenv(path: Path) -> None:
-    """Minimal .env reader: KEY=VALUE lines; existing environment variables win."""
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            key, value = line.split("=", 1)
-            os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
 if __name__ == "__main__":

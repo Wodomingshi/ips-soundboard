@@ -6,13 +6,15 @@ Two severities:
   warning - a soft limit is reached: no further buying (buy limits), or the
             data is incomplete (unvalued holdings)
 
-Not checked here: issuer and sub-industry exclusions. They need reliable
-issuer/sector data, which the classifier module will provide. Matching names
-by text gives false positives ("Meta" in "Metals").
+Exclusions use the holdings' issuer and industry columns (filled by hand or with the
+classifier). Issuers match on whole words from the start of the name, so an excluded
+"Meta" matches "Meta Platforms Inc" but not "Metals ETF". Only direct holdings (stocks
+and bonds) are checked: what sits inside a fund is not known to the tool.
 """
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -21,7 +23,7 @@ from typing import Literal
 from ips_soundboard.display import label, pct
 from ips_soundboard.engine.allocation import Allocation, allocate, managed_weights
 from ips_soundboard.engine.valuation import ValuedHolding
-from ips_soundboard.schemas.holdings import Holding
+from ips_soundboard.schemas.holdings import Holding, to_snake
 from ips_soundboard.schemas.ips import IPS, PositionLimits
 
 Severity = Literal["breach", "warning"]
@@ -46,6 +48,7 @@ def check_limits(valued: Sequence[ValuedHolding], ips: IPS) -> list[Finding]:
         + check_picks_total(weights, ips.limits)
         + check_themes(weights, ips)
         + check_banned_instruments([v.holding for v in valued], ips.limits)
+        + check_exclusions([v.holding for v in valued], ips)
         + check_sleeve_bands(allocation)
         + check_reserve(allocation)
         + check_unvalued(allocation)
@@ -132,6 +135,64 @@ def check_banned_instruments(holdings: Sequence[Holding], limits: PositionLimits
             findings.append(Finding("banned_instrument", "breach", holding.name, None, None,
                                     f"{holding.name} is {' and '.join(banned)}, which the IPS does not allow"))
     return findings
+
+
+# --- exclusions ------------------------------------------------------------------
+
+DIRECT = ("stock", "bond")
+_LEGAL_SUFFIXES = {"inc", "corp", "corporation", "co", "company", "plc", "ag", "sa", "nv", "se", "ltd", "limited",
+                   "llc", "holding", "holdings", "group", "the", "class", "a", "b", "c", "adr", "reg", "shs"}
+
+
+def check_exclusions(holdings: Sequence[Holding], ips: IPS) -> list[Finding]:
+    """Direct holdings whose issuer or industry the IPS excludes (breach). Applies to every account.
+
+    Also warns once when industry exclusions exist but some direct holdings have no industry,
+    because those cannot be checked.
+    """
+    rules = ips.exclusions
+    excluded_industries = {to_snake(i) for i in rules.sub_industries}
+    excluded_issuers = [(name, name_words(name)) for name in rules.issuers]
+    if not excluded_industries and not excluded_issuers:
+        return []
+
+    findings, unchecked = [], []
+    for h in holdings:
+        if h.instrument_type not in DIRECT:
+            continue
+        if h.industry and h.industry in excluded_industries:
+            findings.append(Finding("excluded_industry", "breach", h.ticker or h.name, None, None,
+                                    f"{h.name} is in {label(h.industry)}, which the IPS excludes"))
+            continue
+        issuer = next((name for name, words in excluded_issuers if _issuer_matches(words, h)), None)
+        if issuer:
+            findings.append(Finding("excluded_issuer", "breach", h.ticker or h.name, None, None,
+                                    f"{h.name} is issued by {issuer}, which the IPS excludes"))
+        elif excluded_industries and not h.industry:
+            unchecked.append(h.name)
+    if unchecked:
+        findings.append(Finding("exclusions_unchecked", "warning", "portfolio", float(len(unchecked)), None,
+                                f"{len(unchecked)} direct holding(s) have no industry, so industry exclusions "
+                                f"cannot be checked for them: {', '.join(unchecked)}"))
+    return findings
+
+
+def _issuer_matches(excluded: list[str], h: Holding) -> bool:
+    """Excluded name's words start the issuer (or holding) name, or equal the ticker symbol."""
+    if not excluded:
+        return False
+    symbol = (h.ticker or "").split(":")[-1].lower()
+    if len(excluded) == 1 and excluded[0] == symbol:
+        return True
+    return any(name_words(text)[:len(excluded)] == excluded for text in (h.issuer, h.name) if text)
+
+
+def name_words(name: str) -> list[str]:
+    """'Tesla, Inc.' -> ['tesla']: lowercase words without legal suffixes."""
+    words = re.findall(r"[a-z0-9]+", name.lower())
+    while words and words[-1] in _LEGAL_SUFFIXES:
+        words.pop()
+    return words
 
 
 # --- sleeves, reserve, data quality -------------------------------------------

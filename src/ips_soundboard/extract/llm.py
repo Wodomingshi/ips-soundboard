@@ -1,32 +1,16 @@
 """Ask Claude for an IPSDraft (structured output), then convert and check it.
 
-The client is anything with `messages.parse(...)` like `anthropic.Anthropic()`, so tests use a
-fake. One retry: if the draft does not validate, the errors are sent back once.
+One retry: if the draft does not validate, the errors are sent back once.
 """
 
 from __future__ import annotations
 
-import os
-from typing import Any, Protocol
-
 from ips_soundboard.extract.convert import ExtractionResult, convert
 from ips_soundboard.extract.draft import IPSDraft
 from ips_soundboard.extract.settings import SETTINGS, choices
+from ips_soundboard.llm import Client, LLMError, ask, default_model
 
-DEFAULT_MODEL = "claude-sonnet-5-5"
-MAX_TOKENS = 8_000
-
-
-class ExtractionError(RuntimeError):
-    """The model did not return a usable draft (refusal, truncation, empty output)."""
-
-
-class Client(Protocol):
-    messages: Any
-
-
-def default_model() -> str:
-    return os.environ.get("IPS_SOUNDBOARD_MODEL", DEFAULT_MODEL)
+ExtractionError = LLMError
 
 
 def extract_ips(document: str, client: Client, model: str | None = None) -> ExtractionResult:
@@ -43,15 +27,7 @@ def extract_ips(document: str, client: Client, model: str | None = None) -> Extr
 
 
 def _ask(client: Client, model: str, messages: list[dict[str, str]]) -> IPSDraft:
-    response = client.messages.parse(model=model, max_tokens=MAX_TOKENS, system=SYSTEM_PROMPT,
-                                     messages=messages, output_format=IPSDraft)
-    if response.stop_reason == "refusal":
-        raise ExtractionError("the model declined to process this document")
-    if response.stop_reason == "max_tokens":
-        raise ExtractionError("the reply was cut off (document too long for the output limit)")
-    if response.parsed_output is None:
-        raise ExtractionError("the model returned no structured output")
-    return response.parsed_output
+    return ask(client, model, SYSTEM_PROMPT, messages, IPSDraft)
 
 
 # --- prompts -------------------------------------------------------------------

@@ -11,7 +11,8 @@ from typing import Literal
 
 from pydantic import ValidationError
 
-from ips_soundboard.schemas.holdings import Holding
+from ips_soundboard.schemas.holdings import Holding, to_snake
+from ips_soundboard.schemas.industries import industries
 from ips_soundboard.schemas.ips import IPS
 
 REQUIRED_COLUMNS = {"name", "account", "currency"}
@@ -95,4 +96,8 @@ def check_against_ips(holdings: list[Holding], ips: IPS) -> list[Issue]:
             issues.append(Issue("info", holding.name, f"sleeve '{holding.sleeve}' is outside the SAA"))
         if holding.instrument_type is None:
             issues.append(Issue("info", holding.name, "no instrument type: unclassified"))
+    for industry in ips.exclusions.sub_industries:
+        if to_snake(industry) not in industries():
+            issues.append(Issue("warning", "IPS", f"excluded industry '{industry}' is not in the industry "
+                                                  f"vocabulary (schemas/industries.yaml), so it can never match"))
     return issues

@@ -29,3 +29,4 @@ reports/out/
 
 # LLM drafts (review before renaming to ips.yaml)
 *.draft.yaml
+*.suggested.csv
