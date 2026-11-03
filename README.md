@@ -82,6 +82,8 @@ Turns a free-text IPS (Markdown, text or PDF) into a **draft** `ips.yaml` plus a
 python -m ips_soundboard.extract examples/sample_investor_eur/IPS.md --compare examples/sample_investor_eur/ips.yaml
 ```
 
+Choose the model with `--model` or the `IPS_SOUNDBOARD_MODEL` environment variable (default: Sonnet). `pytest` never calls the API unless you opt in with `RUN_LIVE_TESTS=1 pytest`.
+
 The model only reads; code checks everything it returns:
 - values are copied as written ("25%") and converted by code, never by the model;
 - every value carries a verbatim quote, and the quote must appear in the document;

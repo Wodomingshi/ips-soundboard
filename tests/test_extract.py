@@ -215,7 +215,8 @@ def test_report_shows_flags_and_comparison() -> None:
 
 # --- live run (only with an API key) -------------------------------------------------
 
-@pytest.mark.skipif(not os.environ.get("ANTHROPIC_API_KEY"), reason="no ANTHROPIC_API_KEY: live LLM test skipped")
+@pytest.mark.skipif(not (os.environ.get("RUN_LIVE_TESTS") and os.environ.get("ANTHROPIC_API_KEY")),
+                    reason="live LLM test costs money: run with RUN_LIVE_TESTS=1 and an API key")
 def test_live_extraction_of_the_sample_ips() -> None:
     anthropic = pytest.importorskip("anthropic")
     result = extract_ips(DOCUMENT, anthropic.Anthropic())
