@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from ips_soundboard.schemas.ips import IPS
 
-Kind = Literal["text", "number", "int", "bool", "choice", "list"]
+Kind = Literal["text", "number", "int", "bool", "choice", "list", "industry"]
 
 # Not stated in an IPS document: tool configuration, or handled separately.
 NOT_EXTRACTED = ("saa", "liquidity.reserve_sleeve", "risk")
@@ -41,7 +41,8 @@ SETTINGS: dict[str, tuple[Kind, str]] = {
     "exclusions.apply_to": ("choice", "'direct_holdings' if exclusions apply only to securities held directly, "
                                       "'look_through' if also to holdings inside funds"),
     "exclusions.issuers": ("list", "A company excluded by name (one rule per company)"),
-    "exclusions.sub_industries": ("list", "An excluded industry, e.g. 'tobacco' (one rule per industry)"),
+    "exclusions.sub_industries": ("industry", "An excluded industry, as one of the industry ids listed below "
+                                            "(one rule per industry)"),
     "taa.sleeve_tilts.max_per_sleeve": ("number", "Largest tactical deviation from target allowed for one sleeve"),
     "taa.sleeve_tilts.max_total_one_way": ("number", "Largest total of all tactical overweights, counted one way"),
     "taa.themes.max_total": ("number", "Maximum total weight of thematic positions"),

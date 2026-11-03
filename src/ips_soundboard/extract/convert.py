@@ -11,6 +11,7 @@ Settings the document does not state are listed, never guessed.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -19,6 +20,7 @@ from pydantic import ValidationError
 from ips_soundboard.extract.draft import IPSDraft
 from ips_soundboard.extract.settings import SETTINGS, choices
 from ips_soundboard.schemas.holdings import to_snake
+from ips_soundboard.schemas.industries import industries
 from ips_soundboard.schemas.ips import IPS
 
 Status = Literal["verified", "quote not found", "number not in quote"]
@@ -51,20 +53,30 @@ class ExtractionResult:
     ambiguities: list[str]
     attempts: int = 1
     notes: list[str] = field(default_factory=list)
+    first_attempt_errors: list[str] = field(default_factory=list)
+    holdings_check: list[str] | None = None  # names that don't match the holdings file (None: not checked)
 
     @property
     def flagged(self) -> list[Evidence]:
         return [e for e in self.evidence if e.status != "verified"]
 
 
-def convert(draft: IPSDraft, document: str) -> ExtractionResult:
+def convert(draft: IPSDraft, document: str, known_sleeves: Sequence[str] = (),
+            known_accounts: Sequence[str] = ()) -> ExtractionResult:
+    """known_*: ids used in the user's holdings file, if given, so the IPS can reuse them."""
     errors: list[str] = []
+    notes: list[str] = []
     evidence: list[Evidence] = []
     data: dict[str, Any] = {}
     normalised_doc = normalise(document)
 
     for sleeve in draft.sleeves:
-        sleeve_id = to_sleeve_id(sleeve.name)
+        sleeve_id = sleeve.id if sleeve.id in known_sleeves else to_sleeve_id(sleeve.name)
+        if sleeve.id and sleeve.id not in known_sleeves:
+            notes.append(f"sleeve '{sleeve.name}': id '{sleeve.id}' is not in the holdings file, so "
+                         f"'{sleeve_id}' was used")
+        elif sleeve.id:
+            notes.append(f"sleeve '{sleeve.name}' uses the holdings id '{sleeve_id}'")
         values = {}
         for part in ("target", "min", "max"):
             written = getattr(sleeve, part)
@@ -93,7 +105,25 @@ def convert(draft: IPSDraft, document: str) -> ExtractionResult:
         data["version"] = DRAFT_VERSION
     data = {key: data[key] for key in IPS.model_fields if key in data}  # schema order
     ips, validation_errors = _validate(data)
-    return ExtractionResult(data, ips, errors + validation_errors, evidence, not_found, list(draft.ambiguities))
+    result = ExtractionResult(data, ips, errors + validation_errors, evidence, not_found, list(draft.ambiguities),
+                              notes=notes)
+    if known_sleeves or known_accounts:
+        result.holdings_check = holdings_mismatches(data, known_sleeves, known_accounts)
+    return result
+
+
+def holdings_mismatches(data: dict[str, Any], known_sleeves: Sequence[str],
+                        known_accounts: Sequence[str]) -> list[str]:
+    """IPS names that the holdings file never uses: either a renaming is needed, or nothing is held there."""
+    found = []
+    for sleeve in data.get("saa", {}):
+        if sleeve not in known_sleeves:
+            found.append(f"sleeve '{sleeve}': no holding uses it (fine for a 0% target; otherwise rename)")
+    scope = data.get("scope", {})
+    for account in [*scope.get("managed", []), *scope.get("reported_only", [])]:
+        if account not in known_accounts:
+            found.append(f"account '{account}': no holding uses it")
+    return found
 
 
 # --- values --------------------------------------------------------------------
@@ -135,8 +165,13 @@ def _parse(path: str, kind: str, written: str) -> Any:
         if value not in choices(path):
             raise ValueError(f"'{written}' is not one of {', '.join(choices(path))}")
         return value
+    if kind == "industry":
+        industry = to_snake(text).replace("&", "")
+        if industry not in industries():
+            raise ValueError(f"'{written}' is not an industry id from the vocabulary")
+        return industry
     if kind == "list":
-        return to_snake(text) if path.startswith("scope.") else text.lower() if "industries" in path else text
+        return account_id(text) if path.startswith("scope.") else text
     if path == "base_currency":
         return text.upper()
     return text
@@ -147,7 +182,7 @@ def _place(data: dict[str, Any], path: str, kind: str, value: Any) -> None:
     node = data
     for part in parents:
         node = node.setdefault(part, {})
-    if kind == "list":
+    if kind in ("list", "industry"):
         items = node.setdefault(leaf, [])
         if value not in items:
             items.append(value)
@@ -155,6 +190,12 @@ def _place(data: dict[str, Any], path: str, kind: str, value: Any) -> None:
         raise ValueError(f"stated twice with different values ({node[leaf]!r} and {value!r})")
     else:
         node[leaf] = value
+
+
+def account_id(name: str) -> str:
+    """'Brokerage account' -> 'brokerage': the id used in the holdings 'account' column."""
+    slug = to_snake(name)
+    return re.sub(r"_accounts?$", "", slug) or slug
 
 
 def to_sleeve_id(name: str) -> str:

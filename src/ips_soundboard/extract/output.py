@@ -28,6 +28,10 @@ def report_lines(result: ExtractionResult, comparison: Comparison | None = None)
         lines.append(f"NOT a valid IPS after {tries}: {len(result.errors)} error(s)")
         lines += [f"  x {e}" for e in result.errors]
 
+    if result.first_attempt_errors:
+        lines.append("  First attempt failed validation; fixed on retry:")
+        lines += [f"    - {e}" for e in result.first_attempt_errors]
+
     verified = len(result.evidence) - len(result.flagged)
     lines.append(f"\nEvidence: {verified} of {len(result.evidence)} values verified against the document")
     for e in result.flagged:
@@ -43,7 +47,18 @@ def report_lines(result: ExtractionResult, comparison: Comparison | None = None)
     if "saa" in result.data:
         ids = ", ".join(result.data["saa"])
         lines.append(f"\nSleeve ids: {ids}")
-        lines.append("  These must match the 'sleeve' column of your holdings file; rename either if needed.")
+        if result.holdings_check is None:
+            lines.append("  These must match the 'sleeve' column of your holdings file: check with --holdings.")
+
+    if result.notes:
+        lines.append("\nNotes:")
+        lines += [f"  - {n}" for n in result.notes]
+    if result.holdings_check is not None:
+        if result.holdings_check:
+            lines.append("\nNames not used in your holdings file:")
+            lines += [f"  ! {m}" for m in result.holdings_check]
+        else:
+            lines.append("\nEvery sleeve and account name matches your holdings file.")
 
     if comparison is not None:
         lines.append(f"\nCompared with the reference: {comparison.matching} settings match, "

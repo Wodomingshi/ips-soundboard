@@ -22,6 +22,8 @@ class _Draft(BaseModel):
 
 class SleeveDraft(_Draft):
     name: str = Field(description="Sleeve name as written in the document")
+    id: str = Field(description="The matching sleeve id from the holdings file, if one is given and clearly "
+                                "corresponds; otherwise an empty string")
     target: str = Field(description="Target weight exactly as written, e.g. '25%'")
     min: str = Field(description="Lower end of the allowed range as written, e.g. '20%'")
     max: str = Field(description="Upper end of the allowed range as written, e.g. '30%'")

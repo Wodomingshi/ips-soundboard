@@ -5,24 +5,31 @@ One retry: if the draft does not validate, the errors are sent back once.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from ips_soundboard.extract.convert import ExtractionResult, convert
 from ips_soundboard.extract.draft import IPSDraft
 from ips_soundboard.extract.settings import SETTINGS, choices
+from ips_soundboard.schemas.industries import industries
 from ips_soundboard.llm import Client, LLMError, ask, default_model
 
 ExtractionError = LLMError
 
 
-def extract_ips(document: str, client: Client, model: str | None = None) -> ExtractionResult:
+def extract_ips(document: str, client: Client, model: str | None = None, known_sleeves: Sequence[str] = (),
+                known_accounts: Sequence[str] = ()) -> ExtractionResult:
+    """known_*: sleeve and account ids from the holdings file, offered to the model for reuse."""
     model = model or default_model()
-    messages: list[dict[str, str]] = [{"role": "user", "content": user_prompt(document)}]
+    messages: list[dict[str, str]] = [{"role": "user", "content": user_prompt(document, known_sleeves,
+                                                                               known_accounts)}]
     draft = _ask(client, model, messages)
-    result = convert(draft, document)
+    result = convert(draft, document, known_sleeves, known_accounts)
     if result.errors:
+        first_errors = result.errors
         messages += [{"role": "assistant", "content": draft.model_dump_json()},
                      {"role": "user", "content": retry_prompt(result.errors)}]
-        result = convert(_ask(client, model, messages), document)
-        result.attempts = 2
+        result = convert(_ask(client, model, messages), document, known_sleeves, known_accounts)
+        result.attempts, result.first_attempt_errors = 2, first_errors
     return result
 
 
@@ -45,7 +52,10 @@ Rules:
   character from the document, containing the value. Use "..." only to skip words.
 - Strategic allocation: one sleeve per row, including sleeves with a 0% target. A range written
   as "20-30%" gives min "20%" and max "30%".
-- Lists (accounts, excluded companies or industries): one rule per item.
+- Lists (accounts, excluded companies or industries): one rule per item. Account values: the
+  account's name without the word "account" (e.g. "brokerage").
+- Excluded industries: map each to the closest industry id in the allowed list; if none fits,
+  leave it out and add an ambiguity.
 - Yes/no settings: value "true" or "false". "No leverage" means leverage_allowed is "false".
 - Choices: use one of the allowed values listed below.
 - Record unclear or contradictory points in ambiguities; do not resolve them yourself.
@@ -55,13 +65,20 @@ Rules:
 def settings_guide() -> str:
     lines = []
     for path, (kind, description) in SETTINGS.items():
-        allowed = f" Allowed: {', '.join(choices(path))}." if kind == "choice" else ""
+        allowed = f" Allowed: {', '.join(choices(path))}." if kind == "choice" else \
+            f" Allowed: {', '.join(industries())}." if kind == "industry" else ""
         lines.append(f"- {path} ({kind}): {description}.{allowed}")
     return "\n".join(lines)
 
 
-def user_prompt(document: str) -> str:
-    return (f"Settings you may extract:\n{settings_guide()}\n\n"
+def user_prompt(document: str, known_sleeves: Sequence[str] = (), known_accounts: Sequence[str] = ()) -> str:
+    known = ""
+    if known_sleeves or known_accounts:
+        known = ("\n\nIds already used in the investor's holdings file. Where a sleeve or account in the "
+                 "document clearly corresponds to one, use that id (sleeve: the id field; account: the value). "
+                 "Otherwise leave the sleeve id empty and write the account as named in the document.\n"
+                 f"- sleeves: {', '.join(known_sleeves) or 'none'}\n- accounts: {', '.join(known_accounts) or 'none'}")
+    return (f"Settings you may extract:\n{settings_guide()}{known}\n\n"
             f"Extract the IPS below.\n\n<document>\n{document}\n</document>")
 
 
