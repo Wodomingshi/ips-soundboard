@@ -68,7 +68,18 @@ def test_stock_above_hard_limit_is_a_breach(ips: IPS) -> None:
 def test_lots_of_one_ticker_are_summed(ips: IPS) -> None:
     lots = [h("SAP lot 1", 3, ticker="SAP.DE", instrument_type="stock", role="satellite"),
             h("SAP lot 2", 3, ticker="SAP.DE", instrument_type="stock", role="satellite")]
-    assert rules(run(balanced(lots), ips)) == {("single_name_buy_limit", "SAP.DE"): "warning"}
+    found = run(balanced(lots), ips)
+    assert rules(found) == {("single_name_buy_limit", "SAP.DE"): "warning"}
+    # subject keeps the ticker (machine id); the message names the holding for people
+    assert found[0].message.startswith("SAP lot 1 is 6.0%, above the 5.0% buy limit")
+
+
+def test_sleeve_messages_use_readable_names(ips: IPS) -> None:
+    found = run(balanced([h("Extra EU", 40, instrument_type="etf", role="core")]), ips)
+    band = [f for f in found if f.rule == "sleeve_band"]
+    assert band and band[0].subject == "eu_equity"
+    assert band[0].message.startswith("EU equity is ")
+    assert "band (target 25.0%)" in band[0].message
 
 
 def test_core_stocks_still_have_per_name_limits(ips: IPS) -> None:

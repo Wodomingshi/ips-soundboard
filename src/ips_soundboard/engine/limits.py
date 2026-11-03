@@ -18,6 +18,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from ips_soundboard.display import label, pct
 from ips_soundboard.engine.allocation import Allocation, allocate, managed_weights
 from ips_soundboard.engine.valuation import ValuedHolding
 from ips_soundboard.schemas.holdings import Holding
@@ -58,14 +59,14 @@ def check_single_names(weights: Sequence[tuple[ValuedHolding, float]], limits: P
     """Per-stock weight against the buy limit (no adds) and hard limit (trim). Lots are summed."""
     stocks = _sum_by_position(weights, lambda h: h.instrument_type == "stock")
     findings = []
-    for name, weight in stocks.items():
+    for key, (name, weight) in stocks.items():
         if limits.single_name_hard_limit is not None and weight > limits.single_name_hard_limit:
-            findings.append(Finding("single_name_hard_limit", "breach", name, weight, limits.single_name_hard_limit,
-                                    f"{name} is {weight:.1%}, above the {limits.single_name_hard_limit:.0%} hard "
+            findings.append(Finding("single_name_hard_limit", "breach", key, weight, limits.single_name_hard_limit,
+                                    f"{name} is {pct(weight)}, above the {pct(limits.single_name_hard_limit)} hard "
                                     f"limit: trim back to the buy limit"))
         elif limits.single_name_buy_limit is not None and weight > limits.single_name_buy_limit:
-            findings.append(Finding("single_name_buy_limit", "warning", name, weight, limits.single_name_buy_limit,
-                                    f"{name} is {weight:.1%}, above the {limits.single_name_buy_limit:.0%} buy "
+            findings.append(Finding("single_name_buy_limit", "warning", key, weight, limits.single_name_buy_limit,
+                                    f"{name} is {pct(weight)}, above the {pct(limits.single_name_buy_limit)} buy "
                                     f"limit: no adds"))
     return findings
 
@@ -78,7 +79,7 @@ def check_picks_total(weights: Sequence[tuple[ValuedHolding, float]], limits: Po
     if total <= limits.picks_max_total:
         return []
     return [Finding("picks_max_total", "breach", "portfolio", total, limits.picks_max_total,
-                    f"Conviction picks total {total:.1%}, above the {limits.picks_max_total:.0%} cap")]
+                    f"Conviction picks total {pct(total)}, above the {pct(limits.picks_max_total)} cap")]
 
 
 # --- themes -------------------------------------------------------------------
@@ -89,24 +90,24 @@ def check_themes(weights: Sequence[tuple[ValuedHolding, float]], ips: IPS) -> li
     if not themes:
         return []
     if budget is None:
-        return [Finding("themes_not_allowed", "breach", name, weight, 0.0,
+        return [Finding("themes_not_allowed", "breach", key, weight, 0.0,
                         f"{name} is held as a theme, but the IPS allows no themes")
-                for name, weight in themes.items()]
+                for key, (name, weight) in themes.items()]
 
     findings = []
-    for name, weight in themes.items():
+    for key, (name, weight) in themes.items():
         if budget.hard_limit_per_theme is not None and weight > budget.hard_limit_per_theme:
-            findings.append(Finding("theme_hard_limit", "breach", name, weight, budget.hard_limit_per_theme,
-                                    f"Theme {name} is {weight:.1%}, above the {budget.hard_limit_per_theme:.0%} "
+            findings.append(Finding("theme_hard_limit", "breach", key, weight, budget.hard_limit_per_theme,
+                                    f"Theme {name} is {pct(weight)}, above the {pct(budget.hard_limit_per_theme)} "
                                     f"hard limit: trim"))
         elif weight > budget.max_per_theme:
-            findings.append(Finding("theme_buy_limit", "warning", name, weight, budget.max_per_theme,
-                                    f"Theme {name} is {weight:.1%}, above the {budget.max_per_theme:.0%} "
+            findings.append(Finding("theme_buy_limit", "warning", key, weight, budget.max_per_theme,
+                                    f"Theme {name} is {pct(weight)}, above the {pct(budget.max_per_theme)} "
                                     f"per-theme limit: no adds"))
-    total = sum(themes.values())
+    total = sum(weight for _, weight in themes.values())
     if total > budget.max_total:
         findings.append(Finding("themes_max_total", "breach", "portfolio", total, budget.max_total,
-                                f"Themes total {total:.1%}, above the {budget.max_total:.0%} budget"))
+                                f"Themes total {pct(total)}, above the {pct(budget.max_total)} budget"))
     if len(themes) > budget.max_count:
         findings.append(Finding("themes_max_count", "breach", "portfolio", float(len(themes)),
                                 float(budget.max_count),
@@ -142,8 +143,8 @@ def check_sleeve_bands(allocation: Allocation) -> list[Finding]:
             continue
         limit = s.min if s.status == "below" else s.max
         findings.append(Finding("sleeve_band", "breach", s.sleeve, s.weight, limit,
-                                f"{s.sleeve} is {s.weight:.1%}, {s.status} its {s.min:.0%}-{s.max:.0%} band "
-                                f"(target {s.target:.0%})"))
+                                f"{label(s.sleeve)} is {pct(s.weight)}, {s.status} its {pct(s.min)} to {pct(s.max)} "
+                                f"band (target {pct(s.target)})"))
     return findings
 
 
@@ -163,10 +164,13 @@ def check_unvalued(allocation: Allocation) -> list[Finding]:
 
 
 def _sum_by_position(weights: Sequence[tuple[ValuedHolding, float]],
-                     include: Callable[[Holding], bool]) -> dict[str, float]:
-    """Sum lot weights per position, keyed by ticker (or name when there is no ticker)."""
+                     include: Callable[[Holding], bool]) -> dict[str, tuple[str, float]]:
+    """Sum lot weights per position: {ticker (or name): (display name, weight)}. The first lot names it."""
     totals: dict[str, float] = defaultdict(float)
+    names: dict[str, str] = {}
     for v, weight in weights:
         if include(v.holding):
-            totals[v.holding.ticker or v.holding.name] += weight
-    return dict(totals)
+            key = v.holding.ticker or v.holding.name
+            totals[key] += weight
+            names.setdefault(key, v.holding.name)
+    return {key: (names[key], total) for key, total in totals.items()}
