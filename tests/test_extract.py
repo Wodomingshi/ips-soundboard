@@ -95,7 +95,7 @@ def test_draft_rejects_unknown_settings() -> None:
 
 @pytest.mark.parametrize(("written", "expected"), [
     ("25%", 0.25), ("-30%", -0.30), ("3 percentage points", 0.03), ("6 points", 0.06), ("1,000", 1000),
-    ("12'000", 12000), ("5k", 5000), ("10", 10), ("two", 2), ("0.5%", 0.005),
+    ("12'000", 12000), ("5k", 5000), ("10", 10), ("two", 2), ("0.5%", 0.005), ("±5pp", 0.05), ("10 pp", 0.10),
 ])
 def test_parse_number(written: str, expected: float) -> None:
     assert parse_number(written) == pytest.approx(expected)

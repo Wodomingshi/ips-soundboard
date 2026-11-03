@@ -58,6 +58,9 @@ Rules:
   leave it out and add an ambiguity.
 - Yes/no settings: value "true" or "false". "No leverage" means leverage_allowed is "false".
 - Choices: use one of the allowed values listed below.
+- A range given for a setting that is itself a limit: use the bound the setting describes (the
+  highest for a maximum, the lowest for a minimum, the deepest loss for a drawdown limit), with
+  the range as the quote, and record it as an ambiguity.
 - Record unclear or contradictory points in ambiguities; do not resolve them yourself.
 """
 

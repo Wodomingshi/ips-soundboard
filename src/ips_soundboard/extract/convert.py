@@ -29,7 +29,7 @@ DRAFT_VERSION = "draft"
 _NUMBER = re.compile(r"\d{1,3}(?:[,'’]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
 _WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
           "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
-_PERCENT = re.compile(r"%|percent|percentage points?|\bpp\b|\bpoints?\b")
+_PERCENT = re.compile(r"%|percent|percentage points?|(?<![a-z])pp\b|\bpoints?\b")  # "5pp", "5 pp"
 _ALIASES = {"annually": "annual", "yearly": "annual", "semi-annual": "semiannual", "semiannually": "semiannual",
             "semi-annually": "semiannual", "monthly": "monthly", "quarterly": "quarterly"}
 _TRUE, _FALSE = {"true", "yes", "allowed"}, {"false", "no", "not allowed", "none"}
