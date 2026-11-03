@@ -133,3 +133,33 @@ def test_report_lists_removed_sentences(facts) -> None:
     text = render(facts, result, "test-model", "review.facts.json")
     assert '"Returns will be 9.9% next year." (unsupported: 9.9)' in text
     assert "Returns will be" not in text.split("## Checks")[0]
+
+
+# --- accuracy fixes after the first live report ----------------------------------------
+
+def test_date_parts_do_not_vouch_for_numbers(facts) -> None:
+    allowed = allowed_numbers(facts)
+    assert unsupported_numbers("The 2022 rate shock ran from 2022-01-03 to 2022-10-12.", allowed) == []
+    assert unsupported_numbers("There are 3 single names over the limit.", allowed) == ["3"]  # 3 only in dates
+    assert unsupported_numbers("It started on 2022-01-04.", allowed) == ["2022-01-04"]
+
+
+def test_counts_written_as_words_are_checked(facts) -> None:
+    allowed = allowed_numbers(facts)
+    assert unsupported_numbers("Four breaches and two warnings were found.", allowed) == []
+    assert unsupported_numbers("Seven breaches were found.", allowed) == ["Seven"]
+
+
+def test_facts_give_counts_and_label_risk_weights(facts) -> None:
+    assert facts["rule_findings"]["counts_by_rule"]["single_name_buy_limit (warning)"] == 2
+    assert "weight_in_covered_portfolio" in facts["risk"]["largest_risk_contributors"][0]
+
+
+def test_new_money_without_buys_has_no_empty_table(analysis) -> None:
+    f = build_facts(analysis, new_money_plan(analysis, 500))  # below the 1,000 minimum trade
+    narrative = good_narrative(build_facts(analysis, new_money_plan(analysis, 9_000)))
+    result = write_narrative(f, FakeClient(narrative.model_copy(update={"new_money": [], "summary": []})),
+                             model="m")
+    text = render(f, result, "m", "x.json")
+    assert "No buys this time; kept as cash: 500 EUR." in text
+    assert "| Sleeve | Buy |" not in text

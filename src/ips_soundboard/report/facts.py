@@ -6,6 +6,7 @@ than computing or rounding its own. The number check then accepts only numbers f
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 from ips_soundboard.dashboard.pipeline import Analysis
@@ -45,6 +46,7 @@ def build_facts(a: Analysis, plan: ContributionPlan | None = None) -> dict[str, 
         "rule_findings": {
             "breaches": sum(f.severity == "breach" for f in a.findings),
             "warnings": sum(f.severity == "warning" for f in a.findings),
+            "counts_by_rule": dict(Counter(f"{f.rule} ({f.severity})" for f in a.findings)),
             "items": [{"severity": f.severity, "finding": f.message} for f in a.findings],
         },
         "ips_rebalancing_policy": {
@@ -78,9 +80,13 @@ def _risk(a: Analysis, money: Any) -> dict[str, Any] | None:
                           "loss": f"{pct(r.var)} ({money(r.var_value)})"},
         "conditional_value_at_risk": {"loss": f"{pct(r.cvar)} ({money(r.cvar_value)})",
                                       "meaning": f"average loss in the worst {1 - r.confidence:.0%} of periods"},
-        "largest_risk_contributors": [{"holding": c.subject, "weight": pct(c.weight), "share_of_risk": pct(c.risk_share)}
+        "risk_weights_note": "Weights in this risk section are shares of the covered portfolio, so they can "
+                             "differ slightly from the allocation weights.",
+        "largest_risk_contributors": [{"holding": c.subject, "weight_in_covered_portfolio": pct(c.weight),
+                                       "share_of_risk": pct(c.risk_share)}
                                       for c in r.by_holding[:TOP_CONTRIBUTORS]],
-        "risk_by_sleeve": [{"sleeve": label(c.subject), "weight": pct(c.weight), "share_of_risk": pct(c.risk_share)}
+        "risk_by_sleeve": [{"sleeve": label(c.subject), "weight_in_covered_portfolio": pct(c.weight),
+                            "share_of_risk": pct(c.risk_share)}
                            for c in r.by_sleeve],
         "currency_exposure": {currency: pct(share) for currency, share in r.currency_exposure.items()},
         "stress_tests": [{"scenario": s.name, "period": f"{s.start} to {s.end}",

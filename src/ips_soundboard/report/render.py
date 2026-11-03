@@ -37,8 +37,12 @@ def render(facts: dict[str, Any], result: NarrativeResult, model: str, facts_fil
     if facts.get("new_money"):
         plan = facts["new_money"]
         out += ["## New money", ""] + _paragraphs(n.new_money)
-        out += _table(["Sleeve", "Buy", "Existing instruments"],
-                      [[b["sleeve"], b["amount"], ", ".join(b["existing_instruments"]) or "none"] for b in plan["buys"]])
+        if plan["buys"]:
+            out += _table(["Sleeve", "Buy", "Existing instruments"],
+                          [[b["sleeve"], b["amount"], ", ".join(b["existing_instruments"]) or "none"]
+                           for b in plan["buys"]])
+        else:
+            out += [f"No buys this time; kept as cash: {plan['kept_as_cash']}.", ""]
 
     out += ["## Checks", ""] + _checks(result, facts_file)
     return "\n".join(out).rstrip() + "\n"
@@ -55,8 +59,9 @@ def _risk_tables(risk: dict[str, Any] | None) -> list[str]:
             [f"CVaR {var['confidence']}, {var['horizon']}", cvar["loss"]],
             ["Coverage of the managed portfolio", risk["coverage_of_managed_portfolio"]]]
     out = _table(["Measure", "Value"], rows)
-    out += _table(["Largest risk contributors", "Weight", "Share of risk"],
-                  [[c["holding"], c["weight"], c["share_of_risk"]] for c in risk["largest_risk_contributors"]])
+    out += _table(["Largest risk contributors", "Weight (covered portfolio)", "Share of risk"],
+                  [[c["holding"], c["weight_in_covered_portfolio"], c["share_of_risk"]]
+                   for c in risk["largest_risk_contributors"]])
     if risk["stress_tests"]:
         out += _table(["Stress scenario", "Period", "Portfolio return", "Coverage"],
                       [[s["scenario"], s["period"], s["portfolio_return"], s["coverage"]] for s in risk["stress_tests"]])

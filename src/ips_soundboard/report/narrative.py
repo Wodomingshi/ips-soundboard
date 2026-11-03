@@ -77,6 +77,10 @@ Rules:
 - Copy every number exactly as it appears in the facts, with the same rounding and format
   ("37.3%", "116,500 EUR"). Never calculate, round, add, subtract or compare numbers to produce
   a new one. Describe differences in words instead ("well above its band").
+- Never count items yourself: use the counts given (rule_findings.counts_by_rule). Numbers written
+  as words ("four") are checked like digits.
+- Risk-section weights are shares of the covered portfolio and can differ slightly from the
+  allocation weights: say which one you mean when both appear.
 - Give no advice beyond what the IPS rules and findings in the facts already say. No market
   views, forecasts or explanations of why markets moved: stress-test names are labels only.
 - Plain, calm, factual language. Short sentences. No exclamation marks, no hype.

@@ -15,12 +15,19 @@ from typing import Any
 _NUMBER = re.compile(r"\d{1,3}(?:[,'’]\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?")
 _PERCENT_AFTER = re.compile(r"\s*(%|percent\b|percentage points?\b|pp\b)")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(])")
+_DATE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+# Counts written as words are checked too ("four holdings"). "one" is left out: it is mostly idiomatic.
+_WORDS = {w: float(i) for i, w in enumerate(
+    "two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen "
+    "eighteen nineteen twenty".split(), start=2)}
+_WORD = re.compile(r"\b(" + "|".join(_WORDS) + r")\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
 class AllowedNumbers:
     percentages: frozenset[float]
     numbers: frozenset[float]
+    dates: frozenset[str] = frozenset()  # matched whole, so "04" in a date vouches for nothing
 
 
 @dataclass(frozen=True)
@@ -30,13 +37,14 @@ class Unsupported:
 
 
 def allowed_numbers(facts: Any) -> AllowedNumbers:
-    percentages, numbers = set(), set()
+    percentages, numbers, dates = set(), set(), set()
     for text in _strings(facts):
-        for value, is_percent in tokens(text):
+        dates.update(_DATE.findall(text))
+        for value, is_percent in tokens(_DATE.sub(" ", text)):
             numbers.add(value)
             if is_percent:
                 percentages.add(value)
-    return AllowedNumbers(frozenset(percentages), frozenset(numbers))
+    return AllowedNumbers(frozenset(percentages), frozenset(numbers), frozenset(dates))
 
 
 def tokens(text: str) -> list[tuple[float, bool]]:
@@ -49,7 +57,11 @@ def tokens(text: str) -> list[tuple[float, bool]]:
 
 
 def unsupported_numbers(text: str, allowed: AllowedNumbers) -> list[str]:
-    bad = []
+    bad = [d for d in _DATE.findall(text) if d not in allowed.dates]
+    text = _DATE.sub(" ", text)
+    for match in _WORD.finditer(text):
+        if _WORDS[match.group().lower()] not in allowed.numbers:
+            bad.append(match.group())
     for match in _NUMBER.finditer(text):
         value = float(re.sub(r"[,'’]", "", match.group()))
         pool = allowed.percentages if _PERCENT_AFTER.match(text, match.end()) else allowed.numbers
