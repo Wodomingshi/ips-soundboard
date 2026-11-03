@@ -2,7 +2,7 @@
 
 Review a portfolio against its own Investment Policy Statement (IPS): allocation drift, rule breaches, concentration and risk, with a written analysis.
 
-> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo), the risk analyser, the quarterly new-money plan, a Streamlit dashboard and LLM extraction of an IPS document into a validated config are in place.
+> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo), the risk analyser, the quarterly new-money plan, a Streamlit dashboard, LLM extraction of an IPS document into a validated config, and LLM-assisted holdings classification (with the issuer and industry exclusion check) are in place.
 
 ## What it does (target MVP)
 
@@ -90,6 +90,21 @@ The model only reads; code checks everything it returns:
 - settings the document does not state are listed, never guessed.
 
 `--compare` diffs the draft against a hand-written config: the sample investor doubles as a benchmark. The draft (`ips.draft.yaml`, git-ignored) is for you to review before renaming it to `ips.yaml`. Running it on your own IPS sends the document to the Anthropic API.
+
+### Classify holdings with Claude
+
+Suggests instrument type, sleeve, role, flags, issuer and industry for each holding, and audits the values already in your file:
+
+```bash
+python -m ips_soundboard.classify examples/sample_investor_eur/holdings.csv examples/sample_investor_eur/ips.yaml
+```
+
+- The model can only choose from fixed lists: your IPS's sleeves, the schema's types and roles, and the industry vocabulary in `src/ips_soundboard/schemas/industries.yaml` (which IPS exclusions use too).
+- Blanks are filled only when the model is confident; your existing values are never changed (a different opinion is reported instead).
+- Only names, tickers and currencies are sent to the API: no quantities or values.
+- Output: `holdings.suggested.csv` (git-ignored) and a report, including the exclusion check run on the suggestions.
+
+The exclusion check itself is deterministic: a directly held stock or bond whose issuer or industry the IPS excludes is a breach, whether the columns were filled by hand or by the classifier.
 
 Tickers use the `EXCHANGE:SYMBOL` format (e.g. `SWX:NESN`, `NYSEARCA:VPU`). Exchange codes are mapped to provider symbols in `src/ips_soundboard/marketdata/exchanges.yaml`.
 

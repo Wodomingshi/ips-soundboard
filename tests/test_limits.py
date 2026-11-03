@@ -20,6 +20,7 @@ def ips() -> IPS:
     raw = load_ips(SAMPLE_DIR / "ips.yaml").model_dump()
     raw["taa"]["themes"] = {"max_total": 0.10, "max_per_theme": 0.03, "max_count": 2, "hard_limit_per_theme": 0.05}
     raw["liquidity"]["reserve_sleeve"] = "reserve"
+    raw["exclusions"]["sub_industries"] = []  # exclusions have their own tests below
     return IPS.model_validate(raw)
 
 
@@ -177,3 +178,57 @@ def test_private_limits_run() -> None:
     holdings = load_holdings(PRIVATE_DIR / "holdings.csv")
     fx = {x.currency: 1.0 for x in holdings}
     check_limits(value_holdings(holdings, {}, fx, "CHF"), load_ips(PRIVATE_DIR / "ips.yaml"))
+
+
+# --- exclusions -------------------------------------------------------------------
+
+@pytest.fixture
+def excluding(ips: IPS) -> IPS:
+    raw = ips.model_dump()
+    raw["exclusions"] = {"apply_to": "direct_holdings", "issuers": ["Meta", "Tesla", "TSLA"],
+                         "sub_industries": ["Integrated oil gas", "tobacco"]}
+    return IPS.model_validate(raw)
+
+
+def stock(name: str, **kwargs) -> Holding:
+    return h(name, 1, instrument_type="stock", role="satellite", **kwargs)
+
+
+def exclusion_rules(holdings: list[Holding], ips: IPS) -> dict[str, str]:
+    return {f.subject: f.rule for f in run(balanced(holdings), ips) if f.rule.startswith("exclu")}
+
+
+def test_excluded_industry_is_a_breach(excluding: IPS) -> None:
+    found = run(balanced([stock("Shell plc", industry="integrated_oil_gas")]), excluding)
+    breach = next(f for f in found if f.rule == "excluded_industry")
+    assert breach.severity == "breach" and breach.message == "Shell plc is in Integrated oil gas, which the IPS excludes"
+
+
+def test_excluded_issuer_matches_whole_words_from_the_start(excluding: IPS) -> None:
+    holdings = [stock("Meta Platforms Inc", industry="internet_media"),
+                stock("Metals Corp", industry="metals_mining"),
+                stock("Big Meta Fund Inc", industry="financial_services")]
+    assert exclusion_rules(holdings, excluding) == {"Meta Platforms Inc": "excluded_issuer"}
+
+
+def test_excluded_issuer_uses_the_issuer_column_and_the_ticker(excluding: IPS) -> None:
+    holdings = [stock("Model Y maker", issuer="Tesla, Inc.", industry="autos"),
+                stock("Some car shares", ticker="NASDAQ:TSLA", industry="autos")]
+    assert set(exclusion_rules(holdings, excluding).values()) == {"excluded_issuer"}
+    assert len(exclusion_rules(holdings, excluding)) == 2
+
+
+def test_funds_are_not_checked_for_exclusions(excluding: IPS) -> None:
+    fund = h("Energy ETF", 1, instrument_type="etf", role="core", industry="integrated_oil_gas")
+    assert exclusion_rules([fund], excluding) == {}
+
+
+def test_direct_holdings_without_industry_are_a_warning(excluding: IPS) -> None:
+    found = run(balanced([stock("Mystery AG")]), excluding)
+    warning = next(f for f in found if f.rule == "exclusions_unchecked")
+    assert warning.severity == "warning" and "Mystery AG" in warning.message
+
+
+def test_unknown_industry_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        stock("Shell plc", industry="petroleum stuff")

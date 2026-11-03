@@ -25,7 +25,7 @@ dev = ["pytest>=8.0", "streamlit>=1.40", "altair>=5", "anthropic>=0.70", "pypdf>
 where = ["src"]
 
 [tool.setuptools.package-data]
-ips_soundboard = ["marketdata/*.yaml", "risk/*.yaml"]
+ips_soundboard = ["marketdata/*.yaml", "risk/*.yaml", "schemas/*.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

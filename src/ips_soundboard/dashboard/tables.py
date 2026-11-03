@@ -57,6 +57,7 @@ def holdings_table(a: Analysis) -> pd.DataFrame:
             "Account": label(h.account),
             "Sleeve": label(h.sleeve) if h.sleeve else "",
             "Role": label(h.role) if h.role else "",
+            "Industry": label(h.industry) if h.industry else "",
             "Currency": h.currency,
             "Value (local)": v.value_local,
             f"Value ({a.ips.base_currency})": v.value_base,

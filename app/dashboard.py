@@ -151,7 +151,8 @@ def rules(a: Analysis) -> None:
         findings["Severity"] = findings["Severity"].map(icons)
         st.dataframe(findings.drop(columns="Rule"), hide_index=True, width="stretch")
     st.caption("Breach = the IPS requires action. Warning = a soft limit is reached (no further buying). "
-               "Issuer and sector exclusions are not checked yet: they need the classifier module.")
+               "Exclusions are checked for directly held stocks and bonds, using the issuer and industry "
+               "columns of the holdings file (fill them by hand or with the classifier).")
 
 
 def holdings(a: Analysis) -> None:

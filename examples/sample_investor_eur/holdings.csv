@@ -1,10 +1,10 @@
-name,ticker,account,currency,quantity,manual_price,manual_value,instrument_type,sleeve,role,purchase_date,purchase_price
-iShares Core MSCI Europe UCITS ETF,AMS:IMEU,brokerage,EUR,900,,,etf,eu_equity,core,2023-03-15,28.10
-iShares Core S&P 500 UCITS ETF,ETR:SXR8,brokerage,EUR,60,,,etf,world_ex_eu_equity,core,2022-11-02,410.00
-iShares Core MSCI EM IMI UCITS ETF,AMS:EIMI,brokerage,EUR,300,,,etf,em_equity,core,2024-01-10,29.80
-iShares Core Euro Government Bond UCITS ETF,AMS:IEGA,brokerage,EUR,180,,,etf,eur_govt_bonds,core,2023-06-20,108.50
-Xetra-Gold,ETR:4GLD,brokerage,EUR,90,,,commodity,gold,core,2024-05-02,68.00
-SAP SE,ETR:SAP,brokerage,EUR,40,,,stock,eu_equity,satellite,2023-09-12,124.00
-ASML Holding,AMS:ASML,brokerage,EUR,12,,,stock,eu_equity,satellite,2024-02-08,780.00
-Cash EUR,,brokerage,EUR,6500,,,cash,cash,core,,
-Company pension,,company_pension,EUR,,,85000,pension,,,,
+name,ticker,account,currency,quantity,manual_price,manual_value,instrument_type,sleeve,role,purchase_date,purchase_price,issuer,industry
+iShares Core MSCI Europe UCITS ETF,AMS:IMEU,brokerage,EUR,900,,,etf,eu_equity,core,2023-03-15,28.10,,
+iShares Core S&P 500 UCITS ETF,ETR:SXR8,brokerage,EUR,60,,,etf,world_ex_eu_equity,core,2022-11-02,410.00,,
+iShares Core MSCI EM IMI UCITS ETF,AMS:EIMI,brokerage,EUR,300,,,etf,em_equity,core,2024-01-10,29.80,,
+iShares Core Euro Government Bond UCITS ETF,AMS:IEGA,brokerage,EUR,180,,,etf,eur_govt_bonds,core,2023-06-20,108.50,,
+Xetra-Gold,ETR:4GLD,brokerage,EUR,90,,,commodity,gold,core,2024-05-02,68.00,,
+SAP SE,ETR:SAP,brokerage,EUR,40,,,stock,eu_equity,satellite,2023-09-12,124.00,SAP SE,software_it_services
+ASML Holding,AMS:ASML,brokerage,EUR,12,,,stock,eu_equity,satellite,2024-02-08,780.00,ASML Holding N.V.,semiconductors
+Cash EUR,,brokerage,EUR,6500,,,cash,cash,core,,,,
+Company pension,,company_pension,EUR,,,85000,pension,,,,,,

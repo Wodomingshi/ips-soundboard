@@ -1,7 +1,7 @@
 """Schema for portfolio holdings.
 
 One row per purchase lot, so cost basis survives for later tax-lot work.
-Classification fields (instrument_type, sleeve, role) are optional: an
+Classification fields (instrument_type, sleeve, role, issuer, industry) are optional: an
 unclassified holding is valid input, and the classifier module fills the gaps.
 
 Prices and FX are not part of a holding. They come from the market-data layer;
@@ -15,6 +15,8 @@ from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from ips_soundboard.schemas.industries import industries
 
 InstrumentType = Literal["stock", "etf", "fund", "bond", "cash", "commodity", "pension", "other"]
 
@@ -50,6 +52,10 @@ class Holding(BaseModel):
     purchase_date: date | None = None
     purchase_price: float | None = Field(default=None, ge=0.0)
     flags: frozenset[Flag] = frozenset()
+    # For directly held stocks and bonds: the company behind it, and its industry (schemas/industries.yaml).
+    # Used by the IPS exclusion check.
+    issuer: str | None = None
+    industry: str | None = None
 
     @field_validator("flags", mode="before")
     @classmethod
@@ -59,7 +65,17 @@ class Holding(BaseModel):
             return {part.strip().lower() for part in value.replace(",", ";").split(";") if part.strip()}
         return value
 
-    @field_validator("name", "ticker", mode="before")
+    @field_validator("industry", mode="before")
+    @classmethod
+    def _check_industry(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        industry = to_snake(value)
+        if industry not in industries():
+            raise ValueError(f"unknown industry '{value}': use one of the ids in schemas/industries.yaml")
+        return industry
+
+    @field_validator("name", "ticker", "issuer", mode="before")
     @classmethod
     def _strip(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value

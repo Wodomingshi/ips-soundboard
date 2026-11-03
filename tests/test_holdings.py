@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from ips_soundboard.holdings import HoldingsFileError, check_against_ips, load_holdings
 from ips_soundboard.schemas.holdings import Holding
-from ips_soundboard.schemas.ips import load_ips
+from ips_soundboard.schemas.ips import IPS, load_ips
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_DIR = ROOT / "examples" / "sample_investor_eur"
@@ -119,3 +119,12 @@ def test_private_holdings_load() -> None:
     if (PRIVATE_DIR / "ips.yaml").exists():
         check_against_ips(holdings, load_ips(PRIVATE_DIR / "ips.yaml"))
     assert holdings
+
+
+def test_ips_exclusion_outside_the_vocabulary_is_flagged() -> None:
+    raw = load_ips(SAMPLE_DIR / "ips.yaml").model_dump()
+    raw["exclusions"]["sub_industries"] = ["tobacco", "fossil fuels"]
+    issues = check_against_ips([], IPS.model_validate(raw))
+    assert [i.message for i in issues] == [
+        "excluded industry 'fossil fuels' is not in the industry vocabulary (schemas/industries.yaml), "
+        "so it can never match"]

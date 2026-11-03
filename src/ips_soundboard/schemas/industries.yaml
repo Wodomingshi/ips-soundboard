@@ -1,0 +1,46 @@
+# Industry vocabulary for directly held stocks and bonds.
+#
+# Used by the holdings 'industry' column, the IPS 'exclusions.sub_industries' list and the
+# classifier, so the three always speak the same language. Deliberately short: detailed where
+# investors commonly exclude (fossil fuels, tobacco, weapons...), broad everywhere else.
+# Extend freely: ids must be snake_case.
+
+# --- commonly excluded ----------------------------------------------------------
+coal: Coal mining and coal-fired power as the main business
+integrated_oil_gas: Integrated oil and gas majors (upstream and downstream)
+oil_gas_exploration_production: Oil and gas exploration and production
+oil_gas_refining_marketing: Refining and fuel marketing
+oil_gas_midstream: Pipelines, storage and transport of oil and gas
+oil_gas_equipment_services: Drilling, equipment and services for the oil and gas industry
+tobacco: Tobacco products
+weapons: Weapons and ammunition makers, including controversial weapons
+aerospace_defense: Aerospace and defence contractors
+gambling: Casinos and gambling
+alcohol: Brewers, distillers and wine makers
+
+# --- energy transition ------------------------------------------------------------
+utilities: Electric, gas and water utilities
+renewable_energy: Solar, wind and other renewable equipment or generation
+nuclear_uranium: Uranium mining and nuclear fuel
+
+# --- broad sectors --------------------------------------------------------------
+semiconductors: Semiconductors and semiconductor equipment
+software_it_services: Software and IT services
+hardware_technology: Computers, devices and electronic components
+internet_media: Internet platforms, social media and advertising
+telecom: Telecommunication services
+consumer_retail: Retail, e-commerce, apparel and leisure
+consumer_staples: Food, beverages (non-alcoholic), household and personal products
+autos: Cars and car parts
+pharma_biotech: Pharmaceuticals and biotechnology
+healthcare_equipment_services: Medical devices and healthcare services
+banks: Banks
+insurance: Insurance and reinsurance
+financial_services: Asset managers, exchanges, brokers, payments and private markets
+real_estate: Real estate companies and REITs
+industrials: Machinery, construction, electrical equipment and conglomerates
+transport_logistics: Airlines, shipping, rail and logistics
+chemicals: Chemicals and materials
+metals_mining: Metals and mining other than coal and uranium
+agriculture: Agricultural products and inputs
+government: Government and supranational issuers (bonds)
