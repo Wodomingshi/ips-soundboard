@@ -43,3 +43,4 @@ rebalancing:
   monitoring_frequency: quarterly
   calendar_rebalance: annual
   min_trade: 1000
+  new_money_max_sleeves: 2

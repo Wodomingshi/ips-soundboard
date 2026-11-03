@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from ips_soundboard.engine.allocation import Allocation, allocate, managed_weights
+from ips_soundboard.engine.contributions import ContributionPlan, plan_contribution
 from ips_soundboard.engine.limits import Finding, check_limits
 from ips_soundboard.engine.valuation import ValuedHolding, value_holdings
 from ips_soundboard.holdings import Issue, check_against_ips
@@ -59,3 +60,8 @@ def run_analysis(holdings: Sequence[Holding], ips: IPS, provider: MarketData,
 def _aligned_weights(valued: list[ValuedHolding], ips: IPS) -> list[float | None]:
     by_identity = {id(v): w for v, w in managed_weights(valued, ips)}
     return [by_identity.get(id(v)) for v in valued]
+
+
+def new_money_plan(a: Analysis, amount: float) -> ContributionPlan:
+    """Where `amount` of new savings would go, given this analysis."""
+    return plan_contribution(a.allocation, a.valued, a.ips, amount)

@@ -16,7 +16,8 @@ import streamlit as st
 from pydantic import ValidationError
 
 from ips_soundboard.dashboard import tables
-from ips_soundboard.dashboard.pipeline import Analysis, run_analysis
+from ips_soundboard.dashboard.pipeline import Analysis, new_money_plan, run_analysis
+from ips_soundboard.engine.contributions import describe
 from ips_soundboard.dashboard.providers import get_provider
 from ips_soundboard.holdings import HoldingsFileError, parse_holdings
 from ips_soundboard.schemas.ips import parse_ips
@@ -200,6 +201,29 @@ def risk(a: Analysis) -> None:
         show(tables.excluded_table(a), pct=("Weight",))
 
 
+def new_money(a: Analysis) -> None:
+    ccy, rules_ = a.ips.base_currency, a.ips.rebalancing
+    step = float(rules_.min_trade) if rules_.min_trade else 1000.0
+    amount = st.columns([1, 2])[0].number_input(f"Amount to invest ({ccy})", min_value=0.0, value=0.0, step=step,
+                                                format="%.0f")
+    n = rules_.new_money_max_sleeves
+    cap = f"at most {n} sleeve{'s' if n > 1 else ''}" if n else "no sleeve cap"
+    st.caption(f"Cash reserve first, then the SAA sleeves furthest below target ({cap}; minimum trade "
+               f"{rules_.min_trade:,.0f} {ccy}). Buys only. Themes and conviction picks get no new money.")
+    if amount <= 0:
+        return
+    plan = new_money_plan(a, amount)
+    st.subheader("Plan")
+    st.markdown("\n".join(f"- {line}" for line in describe(plan)) or "Nothing to do.")
+    for note in plan.notes:
+        st.info(note)
+    st.subheader("Effect on the allocation")
+    show(tables.new_money_table(plan).drop(columns="Instruments").rename(columns={"Buy": f"Buy ({ccy})"}),
+         pct=("Before", "After", "Target"), amounts=(f"Buy ({ccy})",))
+    st.caption("Instruments named in the plan are your existing core holdings in that sleeve, largest first. "
+               "The choice is yours.")
+
+
 # --- page --------------------------------------------------------------------------
 
 def main() -> None:
@@ -230,7 +254,8 @@ def main() -> None:
     k4.metric("Warnings", warnings_)
     st.caption(f"Prices as of {a.snapshot.as_of}. Unvalued holdings: {len(a.allocation.unvalued)}.")
 
-    tab_overview, tab_rules, tab_holdings, tab_risk = st.tabs(["Overview", "Rules", "Holdings", "Risk"])
+    tab_overview, tab_rules, tab_holdings, tab_risk, tab_new = st.tabs(
+        ["Overview", "Rules", "Holdings", "Risk", "New money"])
     with tab_overview:
         overview(a)
     with tab_rules:
@@ -239,6 +264,8 @@ def main() -> None:
         holdings(a)
     with tab_risk:
         risk(a)
+    with tab_new:
+        new_money(a)
 
 
 main()

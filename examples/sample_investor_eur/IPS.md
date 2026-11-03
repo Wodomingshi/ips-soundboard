@@ -35,4 +35,4 @@ The SAA applies to her brokerage account. Her company pension is reported but no
 Sleeve tilts of up to ±3 percentage points, with a total one-way deviation of at most 6 points. No thematic positions. Tilts are only opened when the price is above its 10-month average.
 
 ## Rebalancing
-Review quarterly, rebalance annually, and don't trade amounts below EUR 1,000.
+Review quarterly, rebalance annually, and don't trade amounts below EUR 1,000. New savings are invested once a quarter in the one or two sleeves furthest below target.

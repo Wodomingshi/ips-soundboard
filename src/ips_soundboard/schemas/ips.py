@@ -140,6 +140,8 @@ class Rebalancing(_Strict):
     monitoring_frequency: Frequency = "quarterly"
     calendar_rebalance: Frequency = "annual"
     min_trade: float = Field(default=0.0, ge=0.0)
+    # New savings go to at most this many SAA sleeves per review (the most underweight). None = no cap.
+    new_money_max_sleeves: int | None = Field(default=None, ge=1)
 
 
 class RiskSettings(_Strict):

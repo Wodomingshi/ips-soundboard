@@ -27,4 +27,4 @@ Any figure in a report must be traceable to an engine or risk function. The narr
 7. IPS extraction (LLM)
 8. Holdings classification (LLM)
 9. Report (LLM narrative + tables)
-10. Quarterly allocation of new savings ("where to invest this quarter")
+10. Quarterly allocation of new savings ("where to invest this quarter") ✅
