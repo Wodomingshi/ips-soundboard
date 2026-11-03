@@ -12,6 +12,7 @@ from ips_soundboard.display import label, pct
     ("gold", "Gold"),
     ("company_pension", "Company pension"),
     ("satellite", "Satellite"),
+    ("ai_power", "AI power"),
 ])
 def test_label(identifier: str, expected: str) -> None:
     assert label(identifier) == expected
