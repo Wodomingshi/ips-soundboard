@@ -26,3 +26,6 @@ reports/out/
 .DS_Store
 .vscode/
 .idea/
+
+# LLM drafts (review before renaming to ips.yaml)
+*.draft.yaml

@@ -30,7 +30,7 @@ Flag = Literal["leveraged", "inverse", "derivative", "short"]
 _SNAKE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
-def _to_snake(value: str) -> str:
+def to_snake(value: str) -> str:
     return re.sub(r"[\s\-]+", "_", value.strip().lower())
 
 
@@ -68,7 +68,7 @@ class Holding(BaseModel):
     @classmethod
     def _normalise_id(cls, value: object) -> object:
         """'Pillar 3a' -> 'pillar_3a', so account and sleeve names match the IPS."""
-        return _to_snake(value) if isinstance(value, str) else value
+        return to_snake(value) if isinstance(value, str) else value
 
     @field_validator("account", "sleeve")
     @classmethod
