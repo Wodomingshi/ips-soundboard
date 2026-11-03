@@ -2,7 +2,7 @@
 
 Review a portfolio against its own Investment Policy Statement (IPS): allocation drift, rule breaches, concentration and risk, with a written analysis.
 
-> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo), the risk analyser, the quarterly new-money plan, a Streamlit dashboard, LLM extraction of an IPS document into a validated config, and LLM-assisted holdings classification (with the issuer and industry exclusion check) are in place.
+> **Status:** all planned MVP modules are in place: IPS and holdings schemas, valuation / allocation / limits engine (including exclusions), market data (Yahoo), risk analyser, quarterly new-money plan, Streamlit dashboard, and three LLM steps (IPS extraction, holdings classification, written report) whose output is checked by code. The LLM steps still need a first live evaluation.
 
 ## What it does (target MVP)
 
@@ -105,6 +105,19 @@ python -m ips_soundboard.classify examples/sample_investor_eur/holdings.csv exam
 - Output: `holdings.suggested.csv` (git-ignored) and a report, including the exclusion check run on the suggestions.
 
 The exclusion check itself is deterministic: a directly held stock or bond whose issuer or industry the IPS excludes is a breach, whether the columns were filled by hand or by the classifier.
+
+### Written review with Claude
+
+```bash
+python -m ips_soundboard.report examples/sample_investor_eur/holdings.csv examples/sample_investor_eur/ips.yaml --amount 9000
+```
+
+1. The engine computes everything (allocation, rule findings, risk, stress tests, optionally a new-money plan) into a JSON of **facts**, with every number already formatted ("37.3%", "116,500 EUR").
+2. Claude writes the narrative from those facts only: no market views, no causes beyond the scenario labels, no advice beyond what the IPS findings say.
+3. **Number check:** every number in the text must appear in the facts (percentages against percentages). Sentences that fail are sent back once; any still failing are removed and listed at the end of the report.
+4. Tables are written by code from the same facts.
+
+Output: `reports/out/review-<date>.md` plus the `.facts.json` it used (both git-ignored). Only computed results are sent to the API, not the holdings file. Limitation: the check proves a number exists in the facts, not that a sentence attaches it to the right thing; the tables next to the text make that easy to verify.
 
 Tickers use the `EXCHANGE:SYMBOL` format (e.g. `SWX:NESN`, `NYSEARCA:VPU`). Exchange codes are mapped to provider symbols in `src/ips_soundboard/marketdata/exchanges.yaml`.
 
