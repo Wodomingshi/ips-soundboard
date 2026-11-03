@@ -2,7 +2,7 @@
 
 Review a portfolio against its own Investment Policy Statement (IPS): allocation drift, rule breaches, concentration and risk, with a written analysis.
 
-> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo), the risk analyser and a Streamlit dashboard are in place.
+> **Status:** early development. IPS and holdings schemas, the valuation / allocation / limits engine and market data (Yahoo), the risk analyser, the quarterly new-money plan and a Streamlit dashboard are in place.
 
 ## What it does (target MVP)
 
@@ -14,7 +14,7 @@ holdings.csv ──► [LLM-assisted classification] ──► │
                               deterministic engine (Python, tested)
                        prices · FX · weights · drift vs SAA · limits ·
                        risk (volatility, drawdown, VaR/CVaR, risk contribution) ·
-                       TAA trend rules
+                       TAA trend rules · new-money plan (where to invest new savings)
                                                    │
                                                    ▼
                        [LLM narrative, from computed facts only] ──► report
@@ -68,8 +68,14 @@ Risk report (volatility, drawdown, historical VaR/CVaR, risk contribution, FX ex
 python -m ips_soundboard.risk examples/sample_investor_eur/holdings.csv examples/sample_investor_eur/ips.yaml
 ```
 
+Where to invest new savings (cash reserve first, then the SAA sleeves furthest below target; buys only):
+
+```bash
+python -m ips_soundboard.contribute examples/sample_investor_eur/holdings.csv examples/sample_investor_eur/ips.yaml --amount 9000
+```
+
 Tickers use the `EXCHANGE:SYMBOL` format (e.g. `SWX:NESN`, `NYSEARCA:VPU`). Exchange codes are mapped to provider symbols in `src/ips_soundboard/marketdata/exchanges.yaml`.
 
 ## Disclaimer
 
-This is an educational and analytical tool. It compares a portfolio with rules the user has written themselves. It is **not investment, tax or legal advice**, and nothing it produces is a recommendation to buy or sell any security. All sample investors in this repository are fictional.
+This is an educational and analytical tool. It compares a portfolio with rules the user has written themselves. It is **not investment, tax or legal advice**, and nothing it produces is a recommendation to buy or sell any security. The new-money plan only applies the user's own IPS rules (targets, minimum trade, sleeve cap) as arithmetic; it does not judge any instrument. All sample investors in this repository are fictional.

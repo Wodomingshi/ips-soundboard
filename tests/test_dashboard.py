@@ -69,6 +69,16 @@ def test_risk_tables(analysis) -> None:
     assert not tables.stress_table(analysis).empty
 
 
+def test_new_money_table_covers_every_saa_sleeve(analysis) -> None:
+    from ips_soundboard.dashboard.pipeline import new_money_plan
+
+    plan = new_money_plan(analysis, 9_000)
+    frame = tables.new_money_table(plan)
+    assert list(frame["Sleeve"]) == [label(s) for s in analysis.ips.saa]
+    assert frame["Buy"].sum() == pytest.approx(plan.invested)
+    assert (frame["Buy"] > 0).sum() <= 2  # the sample IPS caps new money at 2 sleeves
+
+
 def test_risk_failure_is_reported_not_raised() -> None:
     holdings = load_holdings(SAMPLE_DIR / "holdings.csv")
     a = run_analysis(holdings, load_ips(SAMPLE_DIR / "ips.yaml"), FakeProvider(), as_of=AS_OF)  # no history
@@ -96,8 +106,11 @@ def test_app_renders_demo_without_errors() -> None:
         at.run()
         at.sidebar.radio[0].set_value("Demo: sample investor (fictional)").run()
         assert not at.exception, at.exception
-        assert [t.label for t in at.tabs] == ["Overview", "Rules", "Holdings", "Risk"]
+        assert [t.label for t in at.tabs] == ["Overview", "Rules", "Holdings", "Risk", "New money"]
         labels = {m.label for m in at.metric}
         assert {"Total wealth", "IPS breaches", "Volatility (annualised)"} <= labels
+        at.number_input[0].set_value(9_000).run()
+        assert not at.exception, at.exception
+        assert any("Buy " in m.value for m in at.markdown)
     finally:
         set_provider(None)

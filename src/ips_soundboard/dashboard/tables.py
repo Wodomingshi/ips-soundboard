@@ -5,6 +5,7 @@ from __future__ import annotations
 import pandas as pd
 
 from ips_soundboard.dashboard.pipeline import Analysis
+from ips_soundboard.engine.contributions import ContributionPlan
 from ips_soundboard.display import label
 
 PRICE_SOURCE_LABEL = {
@@ -104,3 +105,11 @@ def excluded_table(a: Analysis) -> pd.DataFrame:
     if a.risk is None:
         return pd.DataFrame()
     return pd.DataFrame([{"Holding": e.name, "Weight": e.weight, "Reason": e.reason} for e in a.risk.excluded])
+
+
+def new_money_table(plan: ContributionPlan) -> pd.DataFrame:
+    """Every SAA sleeve: what it receives and its weight before and after, against the target."""
+    candidates = {b.sleeve: ", ".join(b.candidates) or "no current holding" for b in plan.buys}
+    return pd.DataFrame([{"Sleeve": label(e.sleeve), "Buy": e.buy, "Before": e.weight_before,
+                          "After": e.weight_after, "Target": e.target, "Instruments": candidates.get(e.sleeve, "")}
+                         for e in plan.effects])
