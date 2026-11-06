@@ -121,6 +121,15 @@ python -m ips_soundboard.report examples/sample_investor_eur/holdings.csv exampl
 
 Output: `reports/out/review-<date>.md` plus the `.facts.json` it used (both git-ignored). Only computed results are sent to the API, not the holdings file. Limitation: the check proves a number exists in the facts, not that a sentence attaches it to the right thing; the tables next to the text make that easy to verify.
 
+### Checking the layout on desktop and phone
+
+```bash
+streamlit run tools/offline_dashboard.py --server.port 8599 --server.headless true &
+python tools/screenshots.py --url http://localhost:8599 --out screenshots
+```
+
+Runs the dashboard offline on the fictional investor (the `private/` option is hidden), screenshots every tab at desktop and phone size into `screenshots/` (git-ignored), and exits with an error if any tab is wider than a phone screen.
+
 Tickers use the `EXCHANGE:SYMBOL` format (e.g. `SWX:NESN`, `NYSEARCA:VPU`). Exchange codes are mapped to provider symbols in `src/ips_soundboard/marketdata/exchanges.yaml`.
 
 ## Disclaimer

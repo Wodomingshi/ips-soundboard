@@ -21,6 +21,7 @@ from ips_soundboard.engine.allocation import managed_weights
 from ips_soundboard.engine.valuation import ValuedHolding
 from ips_soundboard.marketdata.base import MarketData
 from ips_soundboard.risk import metrics
+from ips_soundboard.risk.history import ValueHistory, value_history
 from ips_soundboard.risk.returns import base_currency_prices, daily_returns
 from ips_soundboard.schemas.ips import IPS
 
@@ -73,6 +74,7 @@ class RiskReport:
     currency_exposure: dict[str, float]
     stress: list[StressResult]
     excluded: list[Excluded] = field(default_factory=list)
+    history: ValueHistory | None = None  # today's holdings at past prices (see risk/history.py)
 
     @property
     def var_value(self) -> float:
@@ -114,7 +116,8 @@ def analyse_risk(valued: Sequence[ValuedHolding], ips: IPS, provider: MarketData
     closes = _add_cash_series(closes, fx, candidates)
 
     currency_of = {p.key: p.currency for p in candidates}
-    returns = daily_returns(base_currency_prices(closes, currency_of, fx, base))
+    prices_base = base_currency_prices(closes, currency_of, fx, base)
+    returns = daily_returns(prices_base)
     local_returns = daily_returns(base_currency_prices(closes, {k: base for k in currency_of}, pd.DataFrame(), base))
 
     included, too_short = _enough_history(candidates, returns, settings.min_history_share, settings.lookback_years)
@@ -154,6 +157,7 @@ def analyse_risk(valued: Sequence[ValuedHolding], ips: IPS, provider: MarketData
         currency_exposure=_currency_exposure(positions),
         stress=_stress(returns, included),
         excluded=sorted(excluded, key=lambda e: -e.weight),
+        history=value_history(prices_base, [(p.key, p.sleeve, p.value) for p in positions]),
     )
 
 

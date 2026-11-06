@@ -7,6 +7,7 @@ import pandas as pd
 from ips_soundboard.dashboard.pipeline import Analysis
 from ips_soundboard.engine.contributions import ContributionPlan
 from ips_soundboard.display import label
+from ips_soundboard.risk.history import breach_periods, review_start
 
 PRICE_SOURCE_LABEL = {
     "live": "live price",
@@ -114,3 +115,45 @@ def new_money_table(plan: ContributionPlan) -> pd.DataFrame:
     return pd.DataFrame([{"Sleeve": label(e.sleeve), "Buy": e.buy, "Before": e.weight_before,
                           "After": e.weight_after, "Target": e.target, "Instruments": candidates.get(e.sleeve, "")}
                          for e in plan.effects])
+
+
+# --- value history and the latest review period ------------------------------------------
+
+PERIOD_WORD = {"monthly": "month", "quarterly": "quarter", "semiannual": "half-year", "annual": "year"}
+
+
+def history_frame(a: Analysis) -> pd.DataFrame:
+    """Managed portfolio value per day: today's holdings at past prices."""
+    if a.risk is None or a.risk.history is None:
+        return pd.DataFrame(columns=["Date", "Value"])
+    values = a.risk.history.values.dropna()
+    return pd.DataFrame({"Date": values.index, "Value": values.to_numpy()})
+
+
+def breach_frame(a: Analysis) -> pd.DataFrame:
+    """Periods in the latest review period when a sleeve was outside its band (for shading)."""
+    columns = ["Start", "End", "Sleeves"]
+    if a.risk is None or a.risk.history is None:
+        return pd.DataFrame(columns=columns)
+    periods = breach_periods(a.risk.history, a.ips, a.snapshot.as_of)
+    return pd.DataFrame([{"Start": pd.Timestamp(p.start), "End": pd.Timestamp(p.end) + pd.Timedelta(days=1),
+                          "Sleeves": ", ".join(label(s) for s in p.sleeves)} for p in periods], columns=columns)
+
+
+def rebalancing_summary(a: Analysis) -> str:
+    """One sentence on band breaches in the latest review period."""
+    if a.risk is None or a.risk.history is None:
+        return ""
+    period = PERIOD_WORD[a.ips.rebalancing.monitoring_frequency]
+    start = review_start(a.ips, a.snapshot.as_of)
+    periods = breach_periods(a.risk.history, a.ips, a.snapshot.as_of)
+    if not periods:
+        return f"No sleeve left its band in the last {period} (since {start}): no rebalancing needed."
+    sleeves = list(dict.fromkeys(label(s) for p in periods for s in p.sleeves))
+    days = a.risk.history.sleeve_weights.index
+    window = days[days >= pd.Timestamp(start)]
+    throughout = len(periods) == 1 and periods[0].start == window[0].date() and periods[0].end == window[-1].date()
+    when = f"throughout the {period}" if throughout else "on " + \
+        "; ".join(f"{p.start} to {p.end}" if p.start != p.end else str(p.start) for p in periods)
+    return (f"Rebalancing needed: in the last {period} (since {start}), {', '.join(sleeves)} "
+            f"{'was outside its band' if len(sleeves) == 1 else 'were outside their bands'} {when}.")

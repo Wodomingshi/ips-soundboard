@@ -7,6 +7,8 @@ Displays what the engine and risk modules compute; no financial logic lives here
 
 from __future__ import annotations
 
+import html
+import os
 from datetime import date
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from pydantic import ValidationError
 from ips_soundboard.dashboard import tables
 from ips_soundboard.dashboard.pipeline import Analysis, new_money_plan, run_analysis
 from ips_soundboard.engine.contributions import describe
+from ips_soundboard.risk.history import review_start
 from ips_soundboard.dashboard.providers import get_provider
 from ips_soundboard.holdings import HoldingsFileError, parse_holdings
 from ips_soundboard.schemas.ips import parse_ips
@@ -29,6 +32,8 @@ PRIVATE_DIR = ROOT / "private"
 DEMO = "Demo: sample investor (fictional)"
 PRIVATE = "My files (private/ folder)"
 UPLOAD = "Upload files"
+# Hide the private/ option (layout checks and screenshots must never show real data).
+DEMO_ONLY = bool(os.environ.get("IPS_SOUNDBOARD_DEMO_ONLY"))
 
 
 # Risk chart: the neutral measure in grey, the finding (share of risk) in one strong colour.
@@ -38,13 +43,41 @@ ACCENT = "#1f3a68"
 st.set_page_config(page_title="IPS Soundboard", layout="wide")
 
 
+# --- layout --------------------------------------------------------------------------
+
+# Key figures as a grid: four across on a desktop, two by two on a phone (Streamlit's own
+# columns would stack them one under another on a narrow screen).
+KPI_CSS = """
+<style>
+.kpis {display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem 1.5rem; margin: 0.25rem 0 0.5rem;}
+@media (max-width: 640px) {.kpis {grid-template-columns: repeat(2, minmax(0, 1fr));}}
+.kpi .label {font-size: 0.875rem; opacity: 0.7;}
+.kpi .value {font-size: 1.75rem; line-height: 1.3; font-variant-numeric: tabular-nums; white-space: nowrap;}
+.kpi .value.alert {color: #d62728;}
+.kpi .note {font-size: 0.8rem; opacity: 0.65; line-height: 1.3;}
+@media (max-width: 640px) {.kpi .value {font-size: 1.35rem;} h1 {font-size: 2rem !important;}}
+.finding {margin: 0 0 0.5rem; line-height: 1.45;}
+</style>
+"""
+
+
+def kpis(items: list[tuple[str, str, bool]] | list[tuple[str, str, bool, str]]) -> None:
+    """(label, value, highlight in red[, small note under the value])."""
+    cells = ""
+    for label_, value, alert, *note in items:
+        note_html = f'<div class="note">{html.escape(note[0])}</div>' if note else ""
+        cells += (f'<div class="kpi"><div class="label">{html.escape(label_)}</div>'
+                  f'<div class="value{" alert" if alert else ""}">{html.escape(value)}</div>{note_html}</div>')
+    st.markdown(f'{KPI_CSS}<div class="kpis">{cells}</div>', unsafe_allow_html=True)
+
+
 # --- inputs ------------------------------------------------------------------------
 
 def choose_inputs() -> tuple[str, str, str | None] | None:
     """(holdings CSV, IPS YAML, IPS document or None)."""
     st.sidebar.header("Portfolio")
-    sources = [DEMO] + ([PRIVATE] if (PRIVATE_DIR / "holdings.csv").exists() and
-                        (PRIVATE_DIR / "ips.yaml").exists() else []) + [UPLOAD]
+    has_private = (PRIVATE_DIR / "holdings.csv").exists() and (PRIVATE_DIR / "ips.yaml").exists()
+    sources = [DEMO] + ([PRIVATE] if has_private and not DEMO_ONLY else []) + [UPLOAD]
     source = st.sidebar.radio("Data", sources, index=1 if PRIVATE in sources else 0)
     if source in (DEMO, PRIVATE):
         folder = DEMO_DIR if source == DEMO else PRIVATE_DIR
@@ -89,7 +122,7 @@ def show(frame: pd.DataFrame, *, pct: tuple[str, ...] = (), amounts: tuple[str, 
 
 def sleeve_chart(frame: pd.DataFrame) -> alt.Chart:
     saa = frame[frame["Status"] != "outside SAA"]
-    base = alt.Chart(saa).encode(y=alt.Y("Sleeve:N", sort=None, title=None, axis=alt.Axis(labelLimit=260)))
+    base = alt.Chart(saa).encode(y=alt.Y("Sleeve:N", sort=None, title=None, axis=alt.Axis(labelLimit=140)))
     band = base.mark_bar(color="#d9d9d9", height=22).encode(
         x=alt.X("Min:Q", axis=alt.Axis(format="%"), title="Weight in the managed portfolio"), x2="Max:Q")
     actual = base.mark_bar(height=10).encode(
@@ -105,7 +138,7 @@ def sleeve_chart(frame: pd.DataFrame) -> alt.Chart:
 def contribution_chart(frame: pd.DataFrame) -> alt.Chart:
     top = frame.head(15).melt(id_vars="Name", value_vars=["Weight", "Share of risk"], var_name="Measure")
     return alt.Chart(top).mark_bar().encode(
-        y=alt.Y("Name:N", sort=list(frame.head(15)["Name"]), title=None, axis=alt.Axis(labelLimit=260)),
+        y=alt.Y("Name:N", sort=list(frame.head(15)["Name"]), title=None, axis=alt.Axis(labelLimit=140)),
         x=alt.X("value:Q", axis=alt.Axis(format="%"), title=None),
         yOffset="Measure:N",
         color=alt.Color("Measure:N", scale=alt.Scale(domain=["Weight", "Share of risk"],
@@ -117,8 +150,41 @@ def contribution_chart(frame: pd.DataFrame) -> alt.Chart:
 
 # --- tabs --------------------------------------------------------------------------
 
+def value_chart(a: Analysis) -> alt.LayerChart | None:
+    history = tables.history_frame(a)
+    if history.empty:
+        return None
+    start = pd.Timestamp(review_start(a.ips, a.snapshot.as_of))
+    period = tables.PERIOD_WORD[a.ips.rebalancing.monitoring_frequency]
+    x = alt.X("Date:T", title=None, axis=alt.Axis(format="%Y", tickCount="year"))
+    line = alt.Chart(history).mark_line(color=ACCENT, strokeWidth=1.5).encode(
+        x=x, y=alt.Y("Value:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(format="~s")),
+        tooltip=[alt.Tooltip("Date:T", format="%d %b %Y"), alt.Tooltip("Value:Q", format=",.0f")])
+    marker = pd.DataFrame({"Date": [start], "Label": [f"Last {period}"]})
+    rule = alt.Chart(marker).mark_rule(color="#888", strokeDash=[4, 3]).encode(x="Date:T")
+    text = alt.Chart(marker).mark_text(align="right", dx=-4, y=8, color="#666", fontSize=11).encode(
+        x="Date:T", text="Label")
+    layers = [line, rule, text]
+    breaches = tables.breach_frame(a)
+    if not breaches.empty:
+        layers.insert(0, alt.Chart(breaches).mark_rect(color="#d62728", opacity=0.18).encode(
+            x="Start:T", x2="End:T",
+            tooltip=[alt.Tooltip("Sleeves", title="Outside band"), alt.Tooltip("Start:T", format="%d %b %Y"),
+                     alt.Tooltip("End:T", format="%d %b %Y")]))
+    return alt.layer(*layers).properties(height=220)
+
+
 def overview(a: Analysis) -> None:
     ccy = a.ips.base_currency
+    chart = value_chart(a)
+    if chart is not None:
+        st.subheader("Portfolio value")
+        st.altair_chart(chart, width="stretch")
+        summary = tables.rebalancing_summary(a)
+        (st.warning if summary.startswith("Rebalancing needed") else st.success)(summary)
+        st.caption(f"Managed portfolio in {ccy}: today's holdings valued at past prices, so past trades and "
+                   f"new money are not shown. Red shading: days in the latest review period when a sleeve was "
+                   f"outside its IPS band.")
     left, right = st.columns([3, 2], gap="large")
     with left:
         st.subheader("Allocation vs SAA")
@@ -151,9 +217,11 @@ def rules(a: Analysis, document: str | None) -> None:
     if findings.empty:
         st.success("No breaches or warnings: the portfolio is within every IPS limit checked.")
     else:
-        icons = {"breach": "🔴 breach", "warning": "🟡 warning"}
-        findings["Severity"] = findings["Severity"].map(icons)
-        st.dataframe(findings.drop(columns="Rule"), hide_index=True, width="stretch")
+        # Lines rather than a table: long findings wrap instead of being cut off on a phone.
+        icons = {"breach": "🔴", "warning": "🟡"}
+        for row in findings.itertuples():
+            st.markdown(f'<p class="finding">{icons[row.Severity]} <b>{row.Severity.capitalize()}</b>: '
+                        f'{html.escape(row.Finding)}</p>', unsafe_allow_html=True)
     st.caption("Breach = the IPS requires action. Warning = a soft limit is reached (no further buying). "
                "Exclusions are checked for directly held stocks and bonds, using the issuer and industry "
                "columns of the holdings file (fill them by hand or with the classifier).")
@@ -177,15 +245,12 @@ def risk(a: Analysis) -> None:
     r, ccy = a.risk, a.ips.base_currency
     st.caption(f"Today's portfolio run over {r.window_start} to {r.window_end} ({r.observations} days), "
                f"in {ccy} including FX. Covers {r.coverage:.1%} of the managed portfolio.")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Volatility (annualised)", f"{r.volatility:.1%}")
-    c1.caption(f"{r.volatility_without_fx:.1%} without FX moves")
-    c2.metric("Max drawdown", f"{r.max_drawdown:.1%}")
-    c2.caption(f"{r.drawdown_peak} to {r.drawdown_trough}")
-    c3.metric(f"VaR {r.confidence:.0%}, 1 month", f"{r.var_value:,.0f} {ccy}")
-    c3.caption(f"{r.var:.1%} of the covered portfolio")
-    c4.metric(f"CVaR {r.confidence:.0%}, 1 month", f"{r.cvar_value:,.0f} {ccy}")
-    c4.caption(f"{r.cvar:.1%}: average loss in the worst {1 - r.confidence:.0%} of months")
+    kpis([("Volatility (annualised)", f"{r.volatility:.1%}", False, f"{r.volatility_without_fx:.1%} without FX moves"),
+          ("Max drawdown", f"{r.max_drawdown:.1%}", False, f"{r.drawdown_peak} to {r.drawdown_trough}"),
+          (f"VaR {r.confidence:.0%}, 1 month", f"{r.var_value:,.0f} {ccy}", False,
+           f"{r.var:.1%} of the covered portfolio"),
+          (f"CVaR {r.confidence:.0%}, 1 month", f"{r.cvar_value:,.0f} {ccy}", False,
+           f"{r.cvar:.1%}: average loss in the worst {1 - r.confidence:.0%} of months")])
 
     st.subheader("Where the risk comes from")
     st.caption("Share of risk: each holding's contribution to portfolio volatility (sums to 100%). "
@@ -255,11 +320,10 @@ def main() -> None:
     ccy = a.ips.base_currency
     breaches = sum(f.severity == "breach" for f in a.findings)
     warnings_ = sum(f.severity == "warning" for f in a.findings)
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Total wealth", f"{a.allocation.total_wealth:,.0f} {ccy}")
-    k2.metric("Managed portfolio", f"{a.allocation.managed_value:,.0f} {ccy}")
-    k3.metric("IPS breaches", breaches)
-    k4.metric("Warnings", warnings_)
+    kpis([("Total wealth", f"{a.allocation.total_wealth:,.0f} {ccy}", False),
+          ("Managed portfolio", f"{a.allocation.managed_value:,.0f} {ccy}", False),
+          ("IPS breaches", str(breaches), breaches > 0),
+          ("Warnings", str(warnings_), False)])
     st.caption(f"Prices as of {a.snapshot.as_of}. Unvalued holdings: {len(a.allocation.unvalued)}.")
 
     document = inputs[2]
