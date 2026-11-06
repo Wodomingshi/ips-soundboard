@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from ips_soundboard.risk.history import ValueHistory, breach_periods, review_start, value_history
+from ips_soundboard.risk.history import Lot, ValueHistory, breach_periods, review_start, value_history
 from ips_soundboard.schemas.ips import IPS, load_ips
 
 SAMPLE_DIR = Path(__file__).resolve().parents[1] / "examples" / "sample_investor_eur"
@@ -19,11 +19,33 @@ def ips() -> IPS:
 def test_values_end_at_todays_value_and_scale_with_price() -> None:
     days = pd.bdate_range("2026-01-01", periods=4)
     prices = pd.DataFrame({"A": [10.0, 11.0, None, 20.0], "B": [None, None, 5.0, 5.0]}, index=days)
-    h = value_history(prices, [("A", "eq", 1000.0), ("B", "bonds", 500.0), ("untracked:X", "eq", 200.0)])
+    h = value_history(prices, [Lot("A", "eq", 1000.0, None), Lot("B", "bonds", 500.0, None),
+                               Lot("untracked:X", "eq", 200.0, None)])
     assert h.values.iloc[-1] == pytest.approx(1700.0)
     assert h.values.iloc[0] == pytest.approx(500.0 + 500.0 + 200.0)  # A at half its last price; B flat before listing
     assert h.values.iloc[2] == pytest.approx(550.0 + 500.0 + 200.0)  # missing price carried forward
     assert h.sleeve_weights.sum(axis=1).tolist() == pytest.approx([1.0] * 4)
+
+
+def test_lots_count_from_their_purchase_date() -> None:
+    days = pd.bdate_range("2026-01-01", periods=5)  # Thu 1 Jan ... Wed 7 Jan
+    prices = pd.DataFrame({"A": [10.0, 10.0, 12.0, 12.0, 15.0]}, index=days)
+    lots = [Lot("A", "eq", 1500.0, date(2026, 1, 1)),    # 100 units, bought at 10
+            Lot("A", "eq", 1500.0, date(2026, 1, 6))]    # 100 more, bought at 12
+    h = value_history(prices, lots)
+    assert h.values.tolist() == pytest.approx([1000, 1000, 1200, 2400, 3000])  # jumps on the second purchase
+    assert h.notes == []
+
+
+def test_missing_dates_and_prices_are_assumed_and_noted() -> None:
+    days = pd.bdate_range("2026-01-01", periods=3)
+    prices = pd.DataFrame({"A": [10.0, 10.0, 20.0]}, index=days)
+    lots = [Lot("A", "eq", 200.0, None),                  # no date: held from the start
+            Lot("A", "eq", 200.0, date(2025, 6, 1)),      # bought before the price history starts
+            Lot("A", "eq", 200.0, date(2026, 1, 2))]
+    h = value_history(prices, lots)
+    assert h.values.tolist() == pytest.approx([200, 300, 600])
+    assert len(h.notes) == 2
 
 
 def test_review_period_follows_the_ips(ips: IPS) -> None:

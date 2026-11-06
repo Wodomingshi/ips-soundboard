@@ -158,7 +158,7 @@ def value_chart(a: Analysis) -> alt.LayerChart | None:
     period = tables.PERIOD_WORD[a.ips.rebalancing.monitoring_frequency]
     x = alt.X("Date:T", title=None, axis=alt.Axis(format="%Y", tickCount="year"))
     line = alt.Chart(history).mark_line(color=ACCENT, strokeWidth=1.5).encode(
-        x=x, y=alt.Y("Value:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(format="~s")),
+        x=x, y=alt.Y("Value:Q", title=None, axis=alt.Axis(format="~s")),
         tooltip=[alt.Tooltip("Date:T", format="%d %b %Y"), alt.Tooltip("Value:Q", format=",.0f")])
     marker = pd.DataFrame({"Date": [start], "Label": [f"Last {period}"]})
     rule = alt.Chart(marker).mark_rule(color="#888", strokeDash=[4, 3]).encode(x="Date:T")
@@ -182,9 +182,10 @@ def overview(a: Analysis) -> None:
         st.altair_chart(chart, width="stretch")
         summary = tables.rebalancing_summary(a)
         (st.warning if summary.startswith("Rebalancing needed") else st.success)(summary)
-        st.caption(f"Managed portfolio in {ccy}: today's holdings valued at past prices, so past trades and "
-                   f"new money are not shown. Red shading: days in the latest review period when a sleeve was "
-                   f"outside its IPS band.")
+        notes = " ".join(a.risk.history.notes) if a.risk and a.risk.history else ""
+        st.caption(f"Managed portfolio in {ccy}. Each holding counts from its purchase date, so the line steps up "
+                   f"when you invested. Positions already sold are not in the holdings file, so they are missing. "
+                   f"Red shading: days in the latest review period when a sleeve was outside its IPS band. {notes}")
     left, right = st.columns([3, 2], gap="large")
     with left:
         st.subheader("Allocation vs SAA")

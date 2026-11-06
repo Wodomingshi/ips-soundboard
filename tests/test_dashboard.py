@@ -121,6 +121,7 @@ def test_app_renders_demo_without_errors() -> None:
 def test_value_history_and_rebalancing_summary(analysis) -> None:
     history = tables.history_frame(analysis)
     assert history["Value"].iloc[-1] == pytest.approx(analysis.allocation.managed_value)
+    assert history["Value"].iloc[0] < history["Value"].iloc[-1] / 2  # starts with the first purchases only
     breaches = tables.breach_frame(analysis)
     assert not breaches.empty and (breaches["Start"] >= pd.Timestamp("2026-07-30")).all()
     summary = tables.rebalancing_summary(analysis)

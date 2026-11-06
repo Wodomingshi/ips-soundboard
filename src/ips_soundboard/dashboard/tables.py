@@ -123,11 +123,12 @@ PERIOD_WORD = {"monthly": "month", "quarterly": "quarter", "semiannual": "half-y
 
 
 def history_frame(a: Analysis) -> pd.DataFrame:
-    """Managed portfolio value per day: today's holdings at past prices."""
+    """Managed portfolio value per day, each holding counted from its purchase date."""
     if a.risk is None or a.risk.history is None:
         return pd.DataFrame(columns=["Date", "Value"])
-    values = a.risk.history.values.dropna()
-    return pd.DataFrame({"Date": values.index, "Value": values.to_numpy()})
+    values = a.risk.history.values
+    frame = pd.DataFrame({"Date": values.index, "Value": values.to_numpy()})
+    return frame[frame["Value"] > 0].reset_index(drop=True)  # start at the first purchase
 
 
 def breach_frame(a: Analysis) -> pd.DataFrame:

@@ -21,7 +21,7 @@ from ips_soundboard.engine.allocation import managed_weights
 from ips_soundboard.engine.valuation import ValuedHolding
 from ips_soundboard.marketdata.base import MarketData
 from ips_soundboard.risk import metrics
-from ips_soundboard.risk.history import ValueHistory, value_history
+from ips_soundboard.risk.history import Lot, ValueHistory, value_history
 from ips_soundboard.risk.returns import base_currency_prices, daily_returns
 from ips_soundboard.schemas.ips import IPS
 
@@ -157,7 +157,7 @@ def analyse_risk(valued: Sequence[ValuedHolding], ips: IPS, provider: MarketData
         currency_exposure=_currency_exposure(positions),
         stress=_stress(returns, included),
         excluded=sorted(excluded, key=lambda e: -e.weight),
-        history=value_history(prices_base, [(p.key, p.sleeve, p.value) for p in positions]),
+        history=value_history(prices_base, _lots(valued, ips)),
     )
 
 
@@ -179,6 +179,16 @@ def _positions(valued: Sequence[ValuedHolding], ips: IPS) -> list[_Position]:
         position.weight += weight
         position.value += v.value_base or 0.0
     return list(by_key.values())
+
+
+def _lots(valued: Sequence[ValuedHolding], ips: IPS) -> list[Lot]:
+    """One lot per managed holding row, keyed like _positions, from its purchase date."""
+    lots = []
+    for v, _ in managed_weights(valued, ips):
+        h = v.holding
+        key = f"cash:{h.currency}" if h.instrument_type == "cash" else h.ticker or f"untracked:{h.name}"
+        lots.append(Lot(key, h.sleeve or UNCLASSIFIED, v.value_base or 0.0, h.purchase_date))
+    return lots
 
 
 def _add_cash_series(closes: pd.DataFrame, fx: pd.DataFrame, positions: list[_Position]) -> pd.DataFrame:
