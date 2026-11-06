@@ -8,7 +8,6 @@ Displays what the engine and risk modules compute; no financial logic lives here
 from __future__ import annotations
 
 from datetime import date
-from itertools import groupby
 from pathlib import Path
 
 import altair as alt
@@ -17,7 +16,6 @@ import streamlit as st
 from pydantic import ValidationError
 
 from ips_soundboard.dashboard import tables
-from ips_soundboard.policy import policy_rules
 from ips_soundboard.dashboard.pipeline import Analysis, new_money_plan, run_analysis
 from ips_soundboard.engine.contributions import describe
 from ips_soundboard.dashboard.providers import get_provider
@@ -155,35 +153,13 @@ def rules(a: Analysis, document: str | None) -> None:
     else:
         icons = {"breach": "🔴 breach", "warning": "🟡 warning"}
         findings["Severity"] = findings["Severity"].map(icons)
-        st.dataframe(findings.drop(columns="Rule"), hide_index=True, width="stretch",
-                     column_config={"Finding": st.column_config.TextColumn(width="large"),
-                                    "IPS rule": st.column_config.TextColumn(width="large")})
+        st.dataframe(findings.drop(columns="Rule"), hide_index=True, width="stretch")
     st.caption("Breach = the IPS requires action. Warning = a soft limit is reached (no further buying). "
                "Exclusions are checked for directly held stocks and bonds, using the issuer and industry "
                "columns of the holdings file (fill them by hand or with the classifier).")
     if document:
         with st.expander("Read your IPS document"):
             st.markdown(document)
-
-
-def ips_view(a: Analysis, document: str | None) -> None:
-    left, right = st.columns([3, 2], gap="large")
-    with left:
-        st.subheader("Your IPS")
-        if document:
-            with st.container(height=720):
-                st.markdown(document)
-        else:
-            st.info("No IPS document loaded. Put IPS.md next to ips.yaml, or upload it in the sidebar, "
-                    "to read it here.")
-    with right:
-        st.subheader("What the tool checks")
-        st.caption(f"Read from the IPS config (version {a.ips.version}, base currency {a.ips.base_currency}). "
-                   "If something here differs from the document, the document is right: update the config.")
-        st.markdown("**Strategic asset allocation**")
-        st.dataframe(tables.saa_policy_table(a), hide_index=True, width="stretch")
-        for area, rules_ in groupby(policy_rules(a.ips), key=lambda r: r.area):
-            st.markdown(f"**{area}**\n" + "\n".join(f"- {r.rule}: {r.value}" for r in rules_))
 
 
 def holdings(a: Analysis) -> None:
@@ -287,14 +263,12 @@ def main() -> None:
     st.caption(f"Prices as of {a.snapshot.as_of}. Unvalued holdings: {len(a.allocation.unvalued)}.")
 
     document = inputs[2]
-    tab_overview, tab_rules, tab_ips, tab_holdings, tab_risk, tab_new = st.tabs(
-        ["Overview", "Rules", "IPS", "Holdings", "Risk", "New money"])
+    tab_overview, tab_rules, tab_holdings, tab_risk, tab_new = st.tabs(
+        ["Overview", "Rules", "Holdings", "Risk", "New money"])
     with tab_overview:
         overview(a)
     with tab_rules:
         rules(a, document)
-    with tab_ips:
-        ips_view(a, document)
     with tab_holdings:
         holdings(a)
     with tab_risk:

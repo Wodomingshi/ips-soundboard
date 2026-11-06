@@ -106,7 +106,7 @@ def test_app_renders_demo_without_errors() -> None:
         at.run()
         at.sidebar.radio[0].set_value("Demo: sample investor (fictional)").run()
         assert not at.exception, at.exception
-        assert [t.label for t in at.tabs] == ["Overview", "Rules", "IPS", "Holdings", "Risk", "New money"]
+        assert [t.label for t in at.tabs] == ["Overview", "Rules", "Holdings", "Risk", "New money"]
         labels = {m.label for m in at.metric}
         assert {"Total wealth", "IPS breaches", "Volatility (annualised)"} <= labels
         at.number_input[0].set_value(9_000).run()
@@ -115,10 +115,3 @@ def test_app_renders_demo_without_errors() -> None:
     finally:
         set_provider(None)
 
-
-def test_findings_show_the_ips_rule_they_come_from(analysis) -> None:
-    frame = tables.findings_table(analysis)
-    sap = frame[frame["Finding"].str.startswith("SAP SE")].iloc[0]
-    assert sap["IPS rule"] == "Single stock: buy limit: 5.0%"
-    band = frame[frame["Rule"] == "sleeve_band"].iloc[0]
-    assert "band:" in band["IPS rule"]
