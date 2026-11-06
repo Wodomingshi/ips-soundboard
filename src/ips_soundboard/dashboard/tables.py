@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 
 from ips_soundboard.dashboard.pipeline import Analysis
 from ips_soundboard.engine.contributions import ContributionPlan
 from ips_soundboard.display import label
-from ips_soundboard.risk.history import breach_periods, review_start
+from ips_soundboard.risk.history import breach_periods
 
 PRICE_SOURCE_LABEL = {
     "live": "live price",
@@ -122,13 +124,26 @@ def new_money_table(plan: ContributionPlan) -> pd.DataFrame:
 PERIOD_WORD = {"monthly": "month", "quarterly": "quarter", "semiannual": "half-year", "annual": "year"}
 
 
-def history_frame(a: Analysis) -> pd.DataFrame:
-    """Managed portfolio value per day, each holding counted from its purchase date."""
+def history_ranges(a: Analysis) -> dict[str, date]:
+    """Chart ranges -> first day shown. Empty when there is no history."""
+    if a.risk is None or a.risk.history is None or a.risk.history.values.empty:
+        return {}
+    h, end = a.risk.history, a.snapshot.as_of
+    first_day = h.values.index[0].date()
+    last_year = (pd.Timestamp(end) - pd.DateOffset(years=1)).date()
+    return {"Last year": max(last_year, first_day),
+            "Since first trade": max(h.first_purchase or first_day, first_day),
+            f"Max ({a.ips.risk.lookback_years:g} years)": first_day}
+
+
+def history_frame(a: Analysis, start: date | None = None) -> pd.DataFrame:
+    """Managed portfolio value per day from `start`, each holding counted from its purchase date."""
     if a.risk is None or a.risk.history is None:
         return pd.DataFrame(columns=["Date", "Value"])
     values = a.risk.history.values
-    frame = pd.DataFrame({"Date": values.index, "Value": values.to_numpy()})
-    return frame[frame["Value"] > 0].reset_index(drop=True)  # start at the first purchase
+    if start is not None:
+        values = values[values.index >= pd.Timestamp(start)]
+    return pd.DataFrame({"Date": values.index, "Value": values.to_numpy()})
 
 
 def breach_frame(a: Analysis) -> pd.DataFrame:
@@ -139,22 +154,3 @@ def breach_frame(a: Analysis) -> pd.DataFrame:
     periods = breach_periods(a.risk.history, a.ips, a.snapshot.as_of)
     return pd.DataFrame([{"Start": pd.Timestamp(p.start), "End": pd.Timestamp(p.end) + pd.Timedelta(days=1),
                           "Sleeves": ", ".join(label(s) for s in p.sleeves)} for p in periods], columns=columns)
-
-
-def rebalancing_summary(a: Analysis) -> str:
-    """One sentence on band breaches in the latest review period."""
-    if a.risk is None or a.risk.history is None:
-        return ""
-    period = PERIOD_WORD[a.ips.rebalancing.monitoring_frequency]
-    start = review_start(a.ips, a.snapshot.as_of)
-    periods = breach_periods(a.risk.history, a.ips, a.snapshot.as_of)
-    if not periods:
-        return f"No sleeve left its band in the last {period} (since {start}): no rebalancing needed."
-    sleeves = list(dict.fromkeys(label(s) for p in periods for s in p.sleeves))
-    days = a.risk.history.sleeve_weights.index
-    window = days[days >= pd.Timestamp(start)]
-    throughout = len(periods) == 1 and periods[0].start == window[0].date() and periods[0].end == window[-1].date()
-    when = f"throughout the {period}" if throughout else "on " + \
-        "; ".join(f"{p.start} to {p.end}" if p.start != p.end else str(p.start) for p in periods)
-    return (f"Rebalancing needed: in the last {period} (since {start}), {', '.join(sleeves)} "
-            f"{'was outside its band' if len(sleeves) == 1 else 'were outside their bands'} {when}.")

@@ -118,12 +118,14 @@ def test_app_renders_demo_without_errors() -> None:
 
 
 
-def test_value_history_and_rebalancing_summary(analysis) -> None:
-    history = tables.history_frame(analysis)
+def test_value_history_and_ranges(analysis) -> None:
+    ranges = tables.history_ranges(analysis)
+    assert list(ranges) == ["Last year", "Since first trade", "Max (5 years)"]
+    assert ranges["Last year"] == date(2025, 10, 30)
+    assert ranges["Since first trade"] == date(2022, 11, 2)  # earliest purchase in the sample holdings
+    history = tables.history_frame(analysis, ranges["Since first trade"])
+    assert history["Date"].iloc[0] >= pd.Timestamp("2022-11-02")
     assert history["Value"].iloc[-1] == pytest.approx(analysis.allocation.managed_value)
-    assert history["Value"].iloc[0] < history["Value"].iloc[-1] / 2  # starts with the first purchases only
+    assert len(tables.history_frame(analysis)) > len(history)  # max shows more
     breaches = tables.breach_frame(analysis)
     assert not breaches.empty and (breaches["Start"] >= pd.Timestamp("2026-07-30")).all()
-    summary = tables.rebalancing_summary(analysis)
-    assert summary.startswith("Rebalancing needed: in the last quarter (since 2026-07-30)")
-    assert "EU equity" in summary

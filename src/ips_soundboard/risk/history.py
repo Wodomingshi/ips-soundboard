@@ -32,6 +32,7 @@ class ValueHistory:
     values: pd.Series  # managed portfolio value per day, in the base currency
     sleeve_weights: pd.DataFrame  # columns: sleeve ids; rows sum to 1
     notes: list[str] = field(default_factory=list)
+    first_purchase: date | None = None  # earliest purchase date in the holdings file
 
 
 @dataclass(frozen=True)
@@ -73,7 +74,8 @@ def value_history(base_prices: pd.DataFrame, lots: Sequence[Lot]) -> ValueHistor
         notes.append(f"{undated} holding(s) without a purchase date are shown as held from the start.")
     if early:
         notes.append(f"{early} holding(s) bought before {first.date()} start at their value on that day.")
-    return ValueHistory(total, weights, notes)
+    dated = [lot.bought for lot in lots if lot.bought]
+    return ValueHistory(total, weights, notes, min(dated) if dated else None)
 
 
 def review_start(ips: IPS, as_of: date) -> date:

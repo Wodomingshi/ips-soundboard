@@ -150,15 +150,15 @@ def contribution_chart(frame: pd.DataFrame) -> alt.Chart:
 
 # --- tabs --------------------------------------------------------------------------
 
-def value_chart(a: Analysis) -> alt.LayerChart | None:
-    history = tables.history_frame(a)
+def value_chart(a: Analysis, start: date) -> alt.LayerChart | None:
+    history = tables.history_frame(a, start)
     if history.empty:
         return None
     start = pd.Timestamp(review_start(a.ips, a.snapshot.as_of))
     period = tables.PERIOD_WORD[a.ips.rebalancing.monitoring_frequency]
-    x = alt.X("Date:T", title=None, axis=alt.Axis(format="%Y", tickCount="year"))
+    x = alt.X("Date:T", title=None)
     line = alt.Chart(history).mark_line(color=ACCENT, strokeWidth=1.5).encode(
-        x=x, y=alt.Y("Value:Q", title=None, axis=alt.Axis(format="~s")),
+        x=x, y=alt.Y("Value:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(format="~s")),
         tooltip=[alt.Tooltip("Date:T", format="%d %b %Y"), alt.Tooltip("Value:Q", format=",.0f")])
     marker = pd.DataFrame({"Date": [start], "Label": [f"Last {period}"]})
     rule = alt.Chart(marker).mark_rule(color="#888", strokeDash=[4, 3]).encode(x="Date:T")
@@ -176,16 +176,16 @@ def value_chart(a: Analysis) -> alt.LayerChart | None:
 
 def overview(a: Analysis) -> None:
     ccy = a.ips.base_currency
-    chart = value_chart(a)
-    if chart is not None:
+    ranges = tables.history_ranges(a)
+    if ranges:
         st.subheader("Portfolio value")
-        st.altair_chart(chart, width="stretch")
-        summary = tables.rebalancing_summary(a)
-        (st.warning if summary.startswith("Rebalancing needed") else st.success)(summary)
-        notes = " ".join(a.risk.history.notes) if a.risk and a.risk.history else ""
-        st.caption(f"Managed portfolio in {ccy}. Each holding counts from its purchase date, so the line steps up "
-                   f"when you invested. Positions already sold are not in the holdings file, so they are missing. "
-                   f"Red shading: days in the latest review period when a sleeve was outside its IPS band. {notes}")
+        default = "Since first trade"
+        choice = st.segmented_control("Period", list(ranges), default=default, key="value_range",
+                                      label_visibility="collapsed")
+        st.altair_chart(value_chart(a, ranges[choice or default]), width="stretch")
+        notes = " ".join(a.risk.history.notes)
+        st.caption(f"Managed portfolio in {ccy}, each holding from its purchase date (sold positions are not in "
+                   f"the file). Red: days in the latest review period when a sleeve was outside its band. {notes}")
     left, right = st.columns([3, 2], gap="large")
     with left:
         st.subheader("Allocation vs SAA")
