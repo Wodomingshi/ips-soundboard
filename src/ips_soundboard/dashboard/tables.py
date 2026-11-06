@@ -7,6 +7,7 @@ import pandas as pd
 from ips_soundboard.dashboard.pipeline import Analysis
 from ips_soundboard.engine.contributions import ContributionPlan
 from ips_soundboard.display import label
+from ips_soundboard.policy import rule_for, saa_rows
 
 PRICE_SOURCE_LABEL = {
     "live": "live price",
@@ -40,9 +41,17 @@ def sleeve_table(a: Analysis) -> pd.DataFrame:
 
 
 def findings_table(a: Analysis) -> pd.DataFrame:
-    """Subject ids (tickers, sleeve ids) are left out: each message already names the holding or sleeve."""
-    return pd.DataFrame([{"Severity": f.severity, "Rule": f.rule, "Finding": f.message} for f in a.findings],
-                        columns=["Severity", "Rule", "Finding"])
+    """Each finding next to the IPS rule it comes from. Subject ids are left out: messages name the holding."""
+    rows = []
+    for f in a.findings:
+        source = rule_for(f, a.ips)
+        rows.append({"Severity": f.severity, "Rule": f.rule, "Finding": f.message,
+                     "IPS rule": str(source) if source else "Data quality (not an IPS rule)"})
+    return pd.DataFrame(rows, columns=["Severity", "Rule", "Finding", "IPS rule"])
+
+
+def saa_policy_table(a: Analysis) -> pd.DataFrame:
+    return pd.DataFrame(saa_rows(a.ips))
 
 
 def holdings_table(a: Analysis) -> pd.DataFrame:
