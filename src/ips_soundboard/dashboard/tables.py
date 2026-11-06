@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 
 from ips_soundboard.dashboard.pipeline import Analysis
 from ips_soundboard.engine.contributions import ContributionPlan
 from ips_soundboard.display import label
+from ips_soundboard.risk.history import breach_periods
 
 PRICE_SOURCE_LABEL = {
     "live": "live price",
@@ -114,3 +117,40 @@ def new_money_table(plan: ContributionPlan) -> pd.DataFrame:
     return pd.DataFrame([{"Sleeve": label(e.sleeve), "Buy": e.buy, "Before": e.weight_before,
                           "After": e.weight_after, "Target": e.target, "Instruments": candidates.get(e.sleeve, "")}
                          for e in plan.effects])
+
+
+# --- value history and the latest review period ------------------------------------------
+
+PERIOD_WORD = {"monthly": "month", "quarterly": "quarter", "semiannual": "half-year", "annual": "year"}
+
+
+def history_ranges(a: Analysis) -> dict[str, date]:
+    """Chart ranges -> first day shown. Empty when there is no history."""
+    if a.risk is None or a.risk.history is None or a.risk.history.values.empty:
+        return {}
+    h, end = a.risk.history, a.snapshot.as_of
+    first_day = h.values.index[0].date()
+    last_year = (pd.Timestamp(end) - pd.DateOffset(years=1)).date()
+    return {"Last year": max(last_year, first_day),
+            "Since first trade": max(h.first_purchase or first_day, first_day),
+            f"Max ({a.ips.risk.lookback_years:g} years)": first_day}
+
+
+def history_frame(a: Analysis, start: date | None = None) -> pd.DataFrame:
+    """Managed portfolio value per day from `start`, each holding counted from its purchase date."""
+    if a.risk is None or a.risk.history is None:
+        return pd.DataFrame(columns=["Date", "Value"])
+    values = a.risk.history.values
+    if start is not None:
+        values = values[values.index >= pd.Timestamp(start)]
+    return pd.DataFrame({"Date": values.index, "Value": values.to_numpy()})
+
+
+def breach_frame(a: Analysis) -> pd.DataFrame:
+    """Periods in the latest review period when a sleeve was outside its band (for shading)."""
+    columns = ["Start", "End", "Sleeves"]
+    if a.risk is None or a.risk.history is None:
+        return pd.DataFrame(columns=columns)
+    periods = breach_periods(a.risk.history, a.ips, a.snapshot.as_of)
+    return pd.DataFrame([{"Start": pd.Timestamp(p.start), "End": pd.Timestamp(p.end) + pd.Timedelta(days=1),
+                          "Sleeves": ", ".join(label(s) for s in p.sleeves)} for p in periods], columns=columns)

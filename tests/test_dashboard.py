@@ -107,11 +107,25 @@ def test_app_renders_demo_without_errors() -> None:
         at.sidebar.radio[0].set_value("Demo: sample investor (fictional)").run()
         assert not at.exception, at.exception
         assert [t.label for t in at.tabs] == ["Overview", "Rules", "Holdings", "Risk", "New money"]
-        labels = {m.label for m in at.metric}
-        assert {"Total wealth", "IPS breaches", "Volatility (annualised)"} <= labels
+        assert any('class="kpis"' in m.value and "Total wealth" in m.value for m in at.markdown)
+        assert any("Volatility (annualised)" in m.value for m in at.markdown)
+        assert any('class="finding"' in m.value and "Breach" in m.value for m in at.markdown)
         at.number_input[0].set_value(9_000).run()
         assert not at.exception, at.exception
         assert any("Buy " in m.value for m in at.markdown)
     finally:
         set_provider(None)
 
+
+
+def test_value_history_and_ranges(analysis) -> None:
+    ranges = tables.history_ranges(analysis)
+    assert list(ranges) == ["Last year", "Since first trade", "Max (5 years)"]
+    assert ranges["Last year"] == date(2025, 10, 30)
+    assert ranges["Since first trade"] == date(2022, 11, 2)  # earliest purchase in the sample holdings
+    history = tables.history_frame(analysis, ranges["Since first trade"])
+    assert history["Date"].iloc[0] >= pd.Timestamp("2022-11-02")
+    assert history["Value"].iloc[-1] == pytest.approx(analysis.allocation.managed_value)
+    assert len(tables.history_frame(analysis)) > len(history)  # max shows more
+    breaches = tables.breach_frame(analysis)
+    assert not breaches.empty and (breaches["Start"] >= pd.Timestamp("2026-07-30")).all()
