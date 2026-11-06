@@ -11,7 +11,7 @@ _SPECIAL = {
     "eu": "EU", "em": "EM", "dm": "DM", "us": "US", "uk": "UK", "ch": "CH", "row": "RoW",
     "usd": "USD", "eur": "EUR", "chf": "CHF", "gbp": "GBP", "jpy": "JPY",
     "etf": "ETF", "etfs": "ETFs", "reit": "REIT", "reits": "REITs", "esg": "ESG", "tips": "TIPS",
-    "msci": "MSCI", "taa": "TAA", "saa": "SAA",
+    "msci": "MSCI", "taa": "TAA", "saa": "SAA", "ai": "AI",
 }
 
 
