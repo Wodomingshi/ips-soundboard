@@ -8,6 +8,7 @@ Displays what the engine and risk modules compute; no financial logic lives here
 from __future__ import annotations
 
 from datetime import date
+from itertools import groupby
 from pathlib import Path
 
 import altair as alt
@@ -16,6 +17,7 @@ import streamlit as st
 from pydantic import ValidationError
 
 from ips_soundboard.dashboard import tables
+from ips_soundboard.policy import policy_rules
 from ips_soundboard.dashboard.pipeline import Analysis, new_money_plan, run_analysis
 from ips_soundboard.engine.contributions import describe
 from ips_soundboard.dashboard.providers import get_provider
@@ -40,21 +42,25 @@ st.set_page_config(page_title="IPS Soundboard", layout="wide")
 
 # --- inputs ------------------------------------------------------------------------
 
-def choose_inputs() -> tuple[str, str] | None:
+def choose_inputs() -> tuple[str, str, str | None] | None:
+    """(holdings CSV, IPS YAML, IPS document or None)."""
     st.sidebar.header("Portfolio")
     sources = [DEMO] + ([PRIVATE] if (PRIVATE_DIR / "holdings.csv").exists() and
                         (PRIVATE_DIR / "ips.yaml").exists() else []) + [UPLOAD]
     source = st.sidebar.radio("Data", sources, index=1 if PRIVATE in sources else 0)
-    if source == DEMO:
-        return (DEMO_DIR / "holdings.csv").read_text(encoding="utf-8"), (DEMO_DIR / "ips.yaml").read_text(encoding="utf-8")
-    if source == PRIVATE:
-        return (PRIVATE_DIR / "holdings.csv").read_text(encoding="utf-8"), (PRIVATE_DIR / "ips.yaml").read_text(encoding="utf-8")
+    if source in (DEMO, PRIVATE):
+        folder = DEMO_DIR if source == DEMO else PRIVATE_DIR
+        document = folder / "IPS.md"
+        return ((folder / "holdings.csv").read_text(encoding="utf-8"), (folder / "ips.yaml").read_text(encoding="utf-8"),
+                document.read_text(encoding="utf-8") if document.exists() else None)
     holdings_file = st.sidebar.file_uploader("holdings.csv", type="csv")
     ips_file = st.sidebar.file_uploader("ips.yaml", type=["yaml", "yml"])
+    document_file = st.sidebar.file_uploader("IPS document (optional)", type=["md", "txt"])
     if holdings_file is None or ips_file is None:
         st.info("Upload a holdings CSV and an IPS YAML in the sidebar, or pick the demo.")
         return None
-    return holdings_file.getvalue().decode("utf-8"), ips_file.getvalue().decode("utf-8")
+    document = document_file.getvalue().decode("utf-8") if document_file else None
+    return holdings_file.getvalue().decode("utf-8"), ips_file.getvalue().decode("utf-8"), document
 
 
 @st.cache_resource(ttl=3600, show_spinner="Fetching prices, FX and 5 years of history...")
@@ -142,17 +148,42 @@ def overview(a: Analysis) -> None:
                 st.write(f"- **{i.holding}**: {i.message}")
 
 
-def rules(a: Analysis) -> None:
+def rules(a: Analysis, document: str | None) -> None:
     findings = tables.findings_table(a)
     if findings.empty:
         st.success("No breaches or warnings: the portfolio is within every IPS limit checked.")
     else:
         icons = {"breach": "🔴 breach", "warning": "🟡 warning"}
         findings["Severity"] = findings["Severity"].map(icons)
-        st.dataframe(findings.drop(columns="Rule"), hide_index=True, width="stretch")
+        st.dataframe(findings.drop(columns="Rule"), hide_index=True, width="stretch",
+                     column_config={"Finding": st.column_config.TextColumn(width="large"),
+                                    "IPS rule": st.column_config.TextColumn(width="large")})
     st.caption("Breach = the IPS requires action. Warning = a soft limit is reached (no further buying). "
                "Exclusions are checked for directly held stocks and bonds, using the issuer and industry "
                "columns of the holdings file (fill them by hand or with the classifier).")
+    if document:
+        with st.expander("Read your IPS document"):
+            st.markdown(document)
+
+
+def ips_view(a: Analysis, document: str | None) -> None:
+    left, right = st.columns([3, 2], gap="large")
+    with left:
+        st.subheader("Your IPS")
+        if document:
+            with st.container(height=720):
+                st.markdown(document)
+        else:
+            st.info("No IPS document loaded. Put IPS.md next to ips.yaml, or upload it in the sidebar, "
+                    "to read it here.")
+    with right:
+        st.subheader("What the tool checks")
+        st.caption(f"Read from the IPS config (version {a.ips.version}, base currency {a.ips.base_currency}). "
+                   "If something here differs from the document, the document is right: update the config.")
+        st.markdown("**Strategic asset allocation**")
+        st.dataframe(tables.saa_policy_table(a), hide_index=True, width="stretch")
+        for area, rules_ in groupby(policy_rules(a.ips), key=lambda r: r.area):
+            st.markdown(f"**{area}**\n" + "\n".join(f"- {r.rule}: {r.value}" for r in rules_))
 
 
 def holdings(a: Analysis) -> None:
@@ -237,7 +268,7 @@ def main() -> None:
     if st.sidebar.button("Refresh market data"):
         analyse.clear()
     try:
-        a = analyse(*inputs, as_of=date.today())
+        a = analyse(inputs[0], inputs[1], as_of=date.today())
     except HoldingsFileError as error:
         st.error("The holdings file has problems:\n\n" + "\n".join(f"- {p}" for p in error.problems))
         return
@@ -255,12 +286,15 @@ def main() -> None:
     k4.metric("Warnings", warnings_)
     st.caption(f"Prices as of {a.snapshot.as_of}. Unvalued holdings: {len(a.allocation.unvalued)}.")
 
-    tab_overview, tab_rules, tab_holdings, tab_risk, tab_new = st.tabs(
-        ["Overview", "Rules", "Holdings", "Risk", "New money"])
+    document = inputs[2]
+    tab_overview, tab_rules, tab_ips, tab_holdings, tab_risk, tab_new = st.tabs(
+        ["Overview", "Rules", "IPS", "Holdings", "Risk", "New money"])
     with tab_overview:
         overview(a)
     with tab_rules:
-        rules(a)
+        rules(a, document)
+    with tab_ips:
+        ips_view(a, document)
     with tab_holdings:
         holdings(a)
     with tab_risk:
