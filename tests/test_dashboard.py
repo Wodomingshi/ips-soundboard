@@ -190,3 +190,25 @@ def test_compliance_status_wording(analysis) -> None:
         ("warning", "In line with your IPS, with 1 warning")
     assert tables.compliance_status(replace(analysis, findings=[])) == \
         ("ok", "Your holdings are in line with your IPS", "No breaches or warnings in any rule checked.")
+
+
+def test_app_reloads_the_package_after_an_update() -> None:
+    """Streamlit keeps imported modules between reruns; after an update the package must be reloaded."""
+    import subprocess
+    import sys
+    script = f"""
+import sys
+src = open({str(ROOT / "app" / "dashboard.py")!r}).read()
+header = src[:src.index("ROOT = Path(")]
+ns = dict(__file__={str(ROOT / "app" / "dashboard.py")!r}, __name__="dash")
+exec(compile(header, "dashboard.py", "exec"), ns)
+first = sys.modules["ips_soundboard.dashboard.tables"]
+exec(compile(header, "dashboard.py", "exec"), dict(ns))   # rerun, nothing changed
+assert sys.modules["ips_soundboard.dashboard.tables"] is first, "reloaded without a change"
+sys.modules["ips_soundboard"]._code_version = -1.0         # as if loaded before an update
+exec(compile(header, "dashboard.py", "exec"), dict(ns))   # rerun after the update
+assert sys.modules["ips_soundboard.dashboard.tables"] is not first, "old package still in memory"
+print("ok")
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120)
+    assert result.stdout.strip().endswith("ok"), result.stderr[-2000:]
