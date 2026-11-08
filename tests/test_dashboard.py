@@ -106,10 +106,11 @@ def test_app_renders_demo_without_errors() -> None:
         at.run()
         at.sidebar.radio[0].set_value("Demo: sample investor (fictional)").run()
         assert not at.exception, at.exception
-        assert [t.label for t in at.tabs] == ["Overview", "Rules", "Holdings", "Risk", "New money"]
+        assert [t.label for t in at.tabs] == ["Overview", "Compliance", "Holdings", "Risk", "New money"]
         assert any('class="kpis"' in m.value and "Total wealth" in m.value for m in at.markdown)
         assert any("Volatility (annualised)" in m.value for m in at.markdown)
-        assert any('class="finding"' in m.value and "Breach" in m.value for m in at.markdown)
+        assert any('class="finding breach"' in m.value for m in at.markdown)
+        assert any('class="status breach"' in m.value and "4 breaches need action" in m.value for m in at.markdown)
         at.number_input[0].set_value(9_000).run()
         assert not at.exception, at.exception
         assert any("Buy " in m.value for m in at.markdown)
@@ -177,3 +178,15 @@ def test_allocation_chart_adds_an_outside_saa_row() -> None:
     assert "Clean energy" in outside["Details"]
     assert list(tables.sleeve_chart_frame(run_analysis(load_holdings(SAMPLE_DIR / "holdings.csv"),
                 load_ips(SAMPLE_DIR / "ips.yaml"), sample_market(), as_of=AS_OF, with_risk=False))["Sleeve"])[-1] == "Cash"
+
+
+def test_compliance_status_wording(analysis) -> None:
+    from dataclasses import replace
+
+    from ips_soundboard.engine.limits import Finding
+    assert tables.compliance_status(analysis) == ("breach", "4 breaches need action", "and 2 warnings")
+    warning = Finding("single_name_buy_limit", "warning", "X", 0.06, 0.05, "X is 6.0%")
+    assert tables.compliance_status(replace(analysis, findings=[warning]))[:2] == \
+        ("warning", "In line with your IPS, with 1 warning")
+    assert tables.compliance_status(replace(analysis, findings=[])) == \
+        ("ok", "Your holdings are in line with your IPS", "No breaches or warnings in any rule checked.")
