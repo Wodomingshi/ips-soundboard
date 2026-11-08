@@ -6,6 +6,7 @@
 |---|---|---|
 | `schemas` | Typed contracts for the IPS, holdings and analysis results | No |
 | `extract` | Free-text IPS (Markdown/PDF) → `IPS` object | Yes, with output validated against `schemas.ips.IPS` |
+| `prepare` | Minimal list (ticker + quantity) → complete holdings file: names and currencies from the price feed | No |
 | `classify` | Raw holdings rows → ticker, sleeve, instrument type | Yes, as suggestions confirmed by the user |
 | `engine` | Prices, FX, valuation, weights, drift, limit checks, TAA trend rules | No |
 | `risk` | Volatility, drawdown, historical VaR/CVaR, risk contribution by sleeve | No |
@@ -28,3 +29,4 @@ Any figure in a report must be traceable to an engine or risk function. The narr
 8. Holdings classification (LLM) ✅
 9. Report (LLM narrative + tables) ✅
 10. Quarterly allocation of new savings ("where to invest this quarter") ✅
+11. Prepare holdings from a minimal list ✅

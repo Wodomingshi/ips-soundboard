@@ -20,6 +20,12 @@ class Quote:
     currency: str  # ISO code of the major currency, after normalisation
 
 
+@dataclass(frozen=True)
+class SecurityInfo:
+    name: str | None  # official name, if the provider has one
+    currency: str  # trading currency (major unit: GBP, not GBp)
+
+
 def normalise_quote(price: float, currency: str) -> Quote:
     """Convert sub-unit quotes to the major currency: 1,250 GBp -> 12.50 GBP."""
     if currency in _SUBUNITS:
@@ -41,6 +47,10 @@ class MarketData(Protocol):
 
     def history(self, tickers: Sequence[str], start: date, end: date) -> pd.DataFrame:
         """Daily closes: index = dates, columns = canonical tickers, in each ticker's quote currency."""
+        ...
+
+    def describe(self, tickers: Sequence[str]) -> dict[str, SecurityInfo]:
+        """Official name and trading currency. Tickers the provider does not know are omitted."""
         ...
 
     def fx_history(self, currencies: Sequence[str], base: str, start: date, end: date) -> pd.DataFrame:

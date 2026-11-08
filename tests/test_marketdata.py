@@ -65,6 +65,9 @@ class RecordedClient:
         self.requested.append(symbol)
         return self.last.get(symbol)
 
+    def name(self, symbol: str):
+        return {"NESN.SW": "Nestlé S.A.", "VOD.L": "Vodafone Group Public Limited Company"}.get(symbol)
+
     def closes(self, symbols, start, end):
         index = pd.to_datetime(["2026-10-29", "2026-10-30"])
         data = {"NESN.SW": [84.0, 84.87], "VPU": [186.0, 187.58]}
@@ -152,3 +155,11 @@ def test_yfinance_pandas_warnings_are_silenced_after_yfinance_import() -> None:
                                filename="yfinance/multi.py", lineno=221, module="yfinance.multi")
     messages = [str(w.message) for w in caught]
     assert messages == ["Something else is deprecated"]  # only the pandas 'inplace' noise is hidden
+
+
+def test_yahoo_describe_gives_official_name_and_major_currency() -> None:
+    info = YahooProvider(RecordedClient()).describe(["SWX:NESN", "LON:VOD", "NYSEARCA:VPU", "NOPE"])
+    assert info["SWX:NESN"].name == "Nestlé S.A." and info["SWX:NESN"].currency == "CHF"
+    assert info["LON:VOD"].currency == "GBP"  # quoted in pence, reported in pounds
+    assert info["NYSEARCA:VPU"].name is None  # known price, no name: still described
+    assert "NOPE" not in info
