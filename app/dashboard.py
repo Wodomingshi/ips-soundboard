@@ -7,6 +7,7 @@ Displays what the engine and risk modules compute; no financial logic lives here
 
 from __future__ import annotations
 
+import hashlib
 import html
 import os
 import sys
@@ -46,7 +47,13 @@ def _reload_package_if_updated() -> None:
 
 _reload_package_if_updated()
 
-from ips_soundboard.dashboard import tables
+from ips_soundboard.dashboard import ips_review, tables
+from ips_soundboard.dashboard.claude import app_model, get_client
+from ips_soundboard.extract.convert import ExtractionResult
+from ips_soundboard.extract.documents import DOCUMENT_TYPES, DocumentError, document_text
+from ips_soundboard.extract.llm import extract_ips
+from ips_soundboard.extract.output import draft_yaml
+from ips_soundboard.llm import LLMError
 from ips_soundboard.dashboard.pipeline import Analysis, new_money_plan, run_analysis
 from ips_soundboard.engine.contributions import describe
 from ips_soundboard.risk.history import review_start
@@ -103,6 +110,12 @@ KPI_CSS = """
 .kpi .tip::after {content: attr(data-tip); position: absolute; left: -0.5rem; bottom: 1.5rem; z-index: 10; display: none;
   background: #262730; color: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; white-space: nowrap;}
 .kpi .tip:hover::after, .kpi .tip:focus::after {display: block;}
+.reading {border-left: 4px solid #2ca02c; border-radius: 6px; padding: 0.45rem 0.8rem; margin: 0 0 0.45rem;
+  background: rgba(128, 128, 128, 0.06); line-height: 1.4;}
+.reading.flagged {border-color: #e6a000;}
+.reading .setting {font-size: 0.8rem; opacity: 0.7;}
+.reading .check {font-size: 0.85rem; color: #2ca02c;} .reading.flagged .check {color: #b07a00;}
+.reading .quote {font-size: 0.85rem; opacity: 0.75; font-style: italic;}
 .legend {display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; font-size: 0.85rem; opacity: 0.85; margin: 0 0 0.25rem;}
 .legend span {display: inline-flex; align-items: center; gap: 0.4rem;}
 .legend i {display: inline-block; width: 16px; height: 10px; border-radius: 2px;}
@@ -158,14 +171,161 @@ def choose_inputs() -> tuple[str, str, str | None] | None:
         document = folder / "IPS.md"
         return ((folder / "holdings.csv").read_text(encoding="utf-8"), (folder / "ips.yaml").read_text(encoding="utf-8"),
                 document.read_text(encoding="utf-8") if document.exists() else None)
-    holdings_file = st.sidebar.file_uploader("holdings.csv", type="csv")
-    ips_file = st.sidebar.file_uploader("ips.yaml", type=["yaml", "yml"])
-    document_file = st.sidebar.file_uploader("IPS document (optional)", type=["md", "txt"])
+    return uploaded_inputs()
+
+
+def app_secrets() -> dict:
+    try:
+        return dict(st.secrets)
+    except (FileNotFoundError, KeyError, st.errors.StreamlitSecretNotFoundError):
+        return {}  # no secrets configured: normal outside a deployment
+
+
+def uploaded_inputs() -> tuple[str, str, str | None] | None:
+    holdings_file = st.sidebar.file_uploader("Holdings (CSV)", type="csv")
+    ips_file = st.sidebar.file_uploader("IPS: an ips.yaml, or your IPS document (md, txt, pdf)",
+                                        type=["yaml", "yml", *DOCUMENT_TYPES])
     if holdings_file is None or ips_file is None:
-        st.info("Upload a holdings CSV and an IPS YAML in the sidebar, or pick the demo.")
+        st.info("Upload your holdings (CSV) and your IPS in the sidebar: an ips.yaml, or the IPS document "
+                "itself, which Claude can read for you. Or pick the demo.")
         return None
-    document = document_file.getvalue().decode("utf-8") if document_file else None
-    return holdings_file.getvalue().decode("utf-8"), ips_file.getvalue().decode("utf-8"), document
+    holdings_text = holdings_file.getvalue().decode("utf-8-sig")
+    if ips_file.name.lower().endswith((".yaml", ".yml")):
+        return holdings_text, ips_file.getvalue().decode("utf-8-sig"), None
+    try:
+        document = document_text(ips_file.name, ips_file.getvalue())
+    except DocumentError as error:
+        st.error(f"Cannot read {ips_file.name}: {error}.")
+        return None
+    ips_yaml = ips_from_document(document, ips_file.name, holdings_text)
+    return (holdings_text, ips_yaml, document) if ips_yaml else None
+
+
+# --- reading an IPS document with Claude ----------------------------------------------
+
+MAX_READS = 3  # Claude reads per visit: caps what one visit can cost
+
+
+def ips_from_document(document: str, filename: str, holdings_text: str) -> str | None:
+    """The confirmed IPS YAML for this document, or None while it is being read and reviewed."""
+    key = hashlib.sha256(document.encode("utf-8")).hexdigest()
+    confirmed = st.session_state.setdefault("confirmed_ips", {})
+    if key in confirmed:
+        if st.sidebar.button("Review the IPS settings again"):
+            del confirmed[key]
+            st.rerun()
+        return confirmed[key]
+    st.header("Read my IPS")
+    reads = st.session_state.setdefault("ips_reads", {})  # one read per document; reruns reuse it
+    if key in reads:
+        review_extraction(*reads[key], filename, key, confirmed)
+    else:
+        offer_reading(document, filename, holdings_text, key, reads)
+    return None
+
+
+def offer_reading(document: str, filename: str, holdings_text: str, key: str, reads: dict) -> None:
+    st.write(f"**{filename}** is a document, not an ips.yaml. Claude can read it and draft the settings. "
+             f"You review every value before anything is used.")
+    secrets = app_secrets()
+    try:
+        client = get_client(secrets)
+    except ImportError:
+        st.warning('The Claude SDK is not installed on this app (pip install -e ".[app]"). '
+                   "Upload an ips.yaml instead.")
+        return
+    if client is None:
+        st.warning("Reading a document needs a Claude API key, and none is set for this app "
+                   "(ANTHROPIC_API_KEY, see docs/deploy.md). Upload an ips.yaml instead.")
+        return
+    used = st.session_state.get("ips_read_count", 0)
+    if used >= MAX_READS:
+        st.warning(f"This visit has used its {MAX_READS} reads. Reload the page to start a new visit, "
+                   f"or download the drafts you have and upload an ips.yaml.")
+        return
+    try:
+        holdings = parse_holdings(holdings_text)
+    except HoldingsFileError as error:
+        st.error("The holdings file has problems:\n\n" + "\n".join(f"- {p}" for p in error.problems))
+        return
+    st.caption("Your IPS document is sent to Anthropic's API to be read. From your holdings, only the "
+               "sleeve and account names are sent, so the IPS uses the same names.")
+    if not st.button("Read my IPS with Claude", type="primary"):
+        return
+    model = app_model(secrets)
+    st.session_state["ips_read_count"] = used + 1  # a failed read costs too
+    sleeves = sorted({h.sleeve for h in holdings if h.sleeve})
+    accounts = sorted({h.account for h in holdings})
+    with st.spinner("Claude is reading your IPS. This takes about half a minute..."):
+        try:
+            result = extract_ips(document, client, model, sleeves, accounts)
+        except Exception as error:  # SDK errors too (bad key, no credit, network): a message, not a crash
+            reason = str(error) if isinstance(error, LLMError) else f"{type(error).__name__}: {error}"
+            st.error(f"Claude could not read the document ({reason}). You can try again.")
+            return
+    reads[key] = (result, model, holdings)
+    st.rerun()
+
+
+def reading_cards(found: pd.DataFrame) -> None:
+    """One card per value: wraps on a phone, unlike a wide table."""
+    cards = "".join(
+        f'<div class="reading{"" if row.Check == "✓" else " flagged"}"><div class="setting">{html.escape(row.Setting)}</div>'
+        f'<div><b>{html.escape(row._2)}</b> <span class="check">{html.escape(row.Check)}</span></div>'
+        f'<div class="quote">“{html.escape(row._3)}”</div></div>'
+        for row in found.itertuples())
+    st.markdown(cards, unsafe_allow_html=True)
+
+
+def review_extraction(result: ExtractionResult, model: str, holdings: list, filename: str, key: str,
+                      confirmed: dict) -> None:
+    st.markdown(KPI_CSS, unsafe_allow_html=True)  # the card styles
+    verified = len(result.evidence) - len(result.flagged)
+    if result.flagged:
+        st.warning(f"Claude read {len(result.evidence)} settings. {verified} check out against your document; "
+                   f"{len(result.flagged)} need a look (marked ⚠).")
+    else:
+        st.success(f"Claude read {len(result.evidence)} settings, and every one checks out against your document.")
+
+    found = ips_review.found_table(result)
+    flagged = found[found["Check"] != "✓"]
+    if not flagged.empty:
+        st.subheader("Check these")
+        reading_cards(flagged)
+    with st.expander(f"Found in your document ({len(found)})"):
+        reading_cards(found)
+    not_stated = ips_review.not_stated_table(result)
+    if not not_stated.empty:
+        with st.expander(f"Not stated in your document ({len(not_stated)})"):
+            st.caption("The tool uses these values. To change one, add it to the settings below.")
+            st.markdown("\n".join(f"- {html.escape(r.Setting)}: **{html.escape(r._2)}**"
+                                   for r in not_stated.itertuples()))
+    if result.ambiguities:
+        st.subheader("Unclear in your document")
+        st.markdown("\n".join(f"- {html.escape(a)}" for a in result.ambiguities))
+    st.subheader("Check and edit")
+    st.caption("Weights are fractions: 0.25 means 25%. The settings are checked as you edit.")
+    text = st.text_area("Settings (ips.yaml)", value=draft_yaml(result, filename, model), height=420,
+                        key=f"ips_edit_{key[:16]}")
+    ips, errors = ips_review.check_yaml(text)
+    if errors:
+        st.error("Not valid yet:\n\n" + "\n".join(f"- {e}" for e in errors))
+    else:
+        unused, holdings_only = ips_review.name_check(ips, holdings)
+        if unused:
+            hint = (f"\n\nYour holdings use these sleeve names: {', '.join(holdings_only)}. "
+                    f"Rename the IPS sleeves above to match." if holdings_only else "")
+            st.warning("Valid, but some names don't match your holdings file. Holdings in a sleeve the IPS "
+                       "doesn't name count as outside the allocation.\n\n"
+                       + "\n".join(f"- {m}" for m in unused) + hint)
+        else:
+            st.success("Valid ✓ Every sleeve and account name matches your holdings file.")
+    left, right = st.columns(2)
+    left.download_button("Download ips.yaml", text, file_name="ips.yaml", mime="text/yaml", width="stretch",
+                         help="Keep it and upload it next time: no need to read the document again.")
+    if right.button("Use this IPS", type="primary", disabled=ips is None, width="stretch"):
+        confirmed[key] = text
+        st.rerun()
 
 
 @st.cache_resource(ttl=3600, show_spinner="Fetching prices, FX and 5 years of history...")

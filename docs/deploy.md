@@ -52,10 +52,35 @@ Edit `private/holdings.csv` as usual, run `python tools/make_secrets.py private`
 new content into the app: **your workspace at share.streamlit.io** → the app's **⋮** → **Settings** →
 **Secrets** → **Save**. The app restarts with the new data within a minute.
 
+## Optional: let the app read IPS documents with Claude
+
+With your Claude API key in the app's secrets, "Upload files" also accepts an IPS document (txt, md
+or pdf) instead of an `ips.yaml`. Claude drafts the settings; you review every value, fix what's
+needed, then use it or download it as `ips.yaml` for next time.
+
+1. In the app's **⋮** → **Settings** → **Secrets**, add this line at the top (your key, from
+   [console.anthropic.com](https://console.anthropic.com) → API keys):
+
+   ```toml
+   ANTHROPIC_API_KEY = "sk-ant-..."
+   ```
+
+   Keep it when you paste new portfolio secrets later: the Secrets box is replaced as a whole.
+2. **Save**. The app restarts within a minute.
+3. Recommended: set a monthly spending limit in the Anthropic console (**Settings → Limits**).
+
+Each reading costs about 1–3 cents with Haiku, the default. To use another model, add
+`IPS_SOUNDBOARD_MODEL = "claude-sonnet-5-5"`. A visit can read at most 3 documents.
+
+Who can use it: anyone who can open the app uses your key. With **Only specific people can view
+this app** (step 3 above), that's only the email addresses you added.
+
+The document is sent to Anthropic's API to be read; of the holdings, only sleeve and account names.
+
 ## Good to know
 
 - Apps that nobody opens for 12 hours go to sleep; the next visit wakes them in about 30 seconds.
 - Prices come from Yahoo. If a price fails on the hosted app (cloud servers are sometimes
   throttled), the dashboard says which holdings could not be priced instead of breaking.
-- The Claude steps (extract, classify, report) are not part of the hosted dashboard; they stay on
-  the command line.
+- Reading an IPS document is the only Claude step in the app (see above). Classifying holdings and
+  the written report stay on the command line.

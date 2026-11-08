@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 
 from ips_soundboard.extract.compare import compare
+from ips_soundboard.extract.documents import DocumentError, read_document
 from ips_soundboard.extract.llm import ExtractionError, default_model, extract_ips
 from ips_soundboard.extract.output import draft_yaml, report_lines
 from ips_soundboard.holdings import load_holdings
@@ -34,7 +35,10 @@ def main() -> None:
 
     client = anthropic_client()
     source = Path(args.document)
-    text = read_document(source)
+    try:
+        text = read_document(source)
+    except DocumentError as error:
+        sys.exit(f"Cannot read {source}: {error}")
     model = args.model or default_model()
     print(f"Extracting {source} with {model}...")
 
@@ -58,16 +62,6 @@ def known_ids(holdings_path: str | None) -> tuple[list[str], list[str]]:
         return [], []
     holdings = load_holdings(holdings_path)
     return sorted({h.sleeve for h in holdings if h.sleeve}), sorted({h.account for h in holdings})
-
-
-def read_document(path: Path) -> str:
-    if path.suffix.lower() == ".pdf":
-        try:
-            from pypdf import PdfReader
-        except ImportError:
-            sys.exit('Reading PDFs needs pypdf: pip install -e ".[llm]"')
-        return "\n".join(page.extract_text() or "" for page in PdfReader(path).pages)
-    return path.read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -97,6 +97,10 @@ python -m ips_soundboard.prepare my_list.csv --account brokerage
 
 ### Extract an IPS document with Claude
 
+**In the app:** pick "Upload files", add your holdings and your IPS document (txt, md or pdf) instead of an `ips.yaml`, and click **Read my IPS with Claude**. You see every value with the sentence it came from, the settings your document doesn't state, and the draft settings to edit (checked as you type, including whether the sleeve names match your holdings). Then **Use this IPS**, or download it as `ips.yaml`. Needs `ANTHROPIC_API_KEY` in the environment or the app's secrets ([docs/deploy.md](docs/deploy.md)); Haiku by default.
+
+**On the command line:**
+
 Turns a free-text IPS (Markdown, text or PDF) into a **draft** `ips.yaml` plus a review report. Install with `pip install -e ".[llm]"` and set `ANTHROPIC_API_KEY` (a Codespaces secret, or a git-ignored `.env` file).
 
 ```bash
