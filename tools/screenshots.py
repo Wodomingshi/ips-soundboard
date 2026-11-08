@@ -14,7 +14,7 @@ from pathlib import Path
 
 from playwright.sync_api import Page, sync_playwright
 
-TABS = ["Overview", "Rules", "Holdings", "Risk", "New money"]
+TABS = ["Overview", "Compliance", "Holdings", "Risk", "New money"]
 SIZES = {
     "desktop": {"viewport": {"width": 1400, "height": 1000}},
     "phone": {"viewport": {"width": 390, "height": 844}, "is_mobile": True, "has_touch": True,

@@ -69,6 +69,23 @@ def findings_table(a: Analysis) -> pd.DataFrame:
                         columns=["Severity", "Rule", "Finding"])
 
 
+def compliance_status(a: Analysis) -> tuple[str, str, str]:
+    """(level, headline, detail) for the Compliance banner. Level: ok, warning or breach."""
+    breaches = sum(f.severity == "breach" for f in a.findings)
+    warnings = sum(f.severity == "warning" for f in a.findings)
+
+    def count(n: int, word: str) -> str:
+        return f"{n} {word}{'' if n == 1 else 'es' if word.endswith('ch') else 's'}"
+
+    if breaches:
+        detail = f"and {count(warnings, 'warning')}" if warnings else "The IPS requires action on each of them."
+        return "breach", f"{count(breaches, 'breach')} need{'s' if breaches == 1 else ''} action", detail
+    if warnings:
+        return ("warning", f"In line with your IPS, with {count(warnings, 'warning')}",
+                "No action needed: just no further buying where a limit is reached.")
+    return "ok", "Your holdings are in line with your IPS", "No breaches or warnings in any rule checked."
+
+
 def holdings_table(a: Analysis) -> pd.DataFrame:
     rows = []
     for v, weight in zip(a.valued, a.weights, strict=True):

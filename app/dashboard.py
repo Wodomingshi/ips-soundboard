@@ -63,7 +63,21 @@ KPI_CSS = """
 .kpi .value.alert {color: #d62728;}
 .kpi .note {font-size: 0.8rem; opacity: 0.65; line-height: 1.3;}
 @media (max-width: 640px) {.kpi .value {font-size: 1.35rem;} h1 {font-size: 2rem !important;}}
-.finding {margin: 0 0 0.5rem; line-height: 1.45;}
+.status {display: flex; align-items: center; gap: 1rem; padding: 0.9rem 1rem; border-radius: 12px; margin: 0.25rem 0 1rem;}
+.status .dot {flex: none; width: 2.6rem; height: 2.6rem; border-radius: 50%; color: #fff; font-size: 1.4rem;
+  font-weight: 700; display: flex; align-items: center; justify-content: center;}
+.status .headline {font-size: 1.15rem; font-weight: 600; line-height: 1.3;}
+.status .detail {font-size: 0.9rem; opacity: 0.75;}
+.status.ok {background: rgba(44, 160, 44, 0.10);} .status.ok .dot {background: #2ca02c;}
+.status.warning {background: rgba(230, 160, 0, 0.12);} .status.warning .dot {background: #e6a000;}
+.status.breach {background: rgba(214, 39, 40, 0.10);} .status.breach .dot {background: #d62728;}
+.finding {border-left: 4px solid; border-radius: 6px; padding: 0.55rem 0.8rem; margin: 0 0 0.5rem; line-height: 1.45;
+  background: rgba(128, 128, 128, 0.06);}
+.finding.breach {border-color: #d62728;} .finding.warning {border-color: #e6a000;}
+.finding .chip {font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 0.5rem;}
+.finding.breach .chip {color: #d62728;} .finding.warning .chip {color: #b07a00;}
+.legend i.breach {background: #d62728; width: 10px; height: 10px; border-radius: 50%;}
+.legend i.warning {background: #e6a000; width: 10px; height: 10px; border-radius: 50%;}
 .kpi .tip {position: relative; display: inline-block; margin-left: 0.3rem; cursor: help; outline: none;}
 .kpi .tip::after {content: attr(data-tip); position: absolute; left: -0.5rem; bottom: 1.5rem; z-index: 10; display: none;
   background: #262730; color: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; white-space: nowrap;}
@@ -267,19 +281,23 @@ def overview(a: Analysis) -> None:
                 st.write(f"- **{i.holding}**: {i.message}")
 
 
-def rules(a: Analysis, document: str | None) -> None:
+def compliance(a: Analysis, document: str | None) -> None:
+    level, headline, detail = tables.compliance_status(a)
+    mark = {"ok": "✓", "warning": "!", "breach": "!"}[level]
+    st.markdown(f'<div class="status {level}"><div class="dot">{mark}</div><div>'
+                f'<div class="headline">{html.escape(headline)}</div><div class="detail">{html.escape(detail)}</div>'
+                f'</div></div>', unsafe_allow_html=True)
     findings = tables.findings_table(a)
-    if findings.empty:
-        st.success("No breaches or warnings: the portfolio is within every IPS limit checked.")
-    else:
-        # Lines rather than a table: long findings wrap instead of being cut off on a phone.
-        icons = {"breach": "🔴", "warning": "🟡"}
-        for row in findings.itertuples():
-            st.markdown(f'<p class="finding">{icons[row.Severity]} <b>{row.Severity.capitalize()}</b>: '
-                        f'{html.escape(row.Finding)}</p>', unsafe_allow_html=True)
-    st.caption("Breach = the IPS requires action. Warning = a soft limit is reached (no further buying). "
-               "Exclusions are checked for directly held stocks and bonds, using the issuer and industry "
-               "columns of the holdings file (fill them by hand or with the classifier).")
+    if not findings.empty:
+        order = {"breach": 0, "warning": 1}
+        cards = "".join(
+            f'<div class="finding {row.Severity}"><span class="chip">{row.Severity}</span>{html.escape(row.Finding)}</div>'
+            for row in sorted(findings.itertuples(), key=lambda r: order[r.Severity]))
+        st.markdown(cards, unsafe_allow_html=True)
+        st.markdown('<div class="legend"><span><i class="breach"></i>Breach: the IPS requires action</span>'
+                    '<span><i class="warning"></i>Warning: limit reached, no further buying</span></div>',
+                    unsafe_allow_html=True)
+    st.caption("Exclusions are checked on stocks and bonds held directly (issuer and industry columns).")
     if document:
         with st.expander("Read your IPS document"):
             st.markdown(document)
@@ -384,12 +402,12 @@ def main() -> None:
         st.warning(f"{unvalued} holding(s) could not be valued and are left out of the figures (see Holdings).")
 
     document = inputs[2]
-    tab_overview, tab_rules, tab_holdings, tab_risk, tab_new = st.tabs(
-        ["Overview", "Rules", "Holdings", "Risk", "New money"])
+    tab_overview, tab_compliance, tab_holdings, tab_risk, tab_new = st.tabs(
+        ["Overview", "Compliance", "Holdings", "Risk", "New money"])
     with tab_overview:
         overview(a)
-    with tab_rules:
-        rules(a, document)
+    with tab_compliance:
+        compliance(a, document)
     with tab_holdings:
         holdings(a)
     with tab_risk:
