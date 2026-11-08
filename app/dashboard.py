@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import html
 import os
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -17,12 +18,10 @@ import pandas as pd
 import streamlit as st
 from pydantic import ValidationError
 
-try:  # installed package (pip install -e .); fall back to the source folder on hosts that only copy the repo
-    import ips_soundboard  # noqa: F401  (only checks that the package is installed)
-except ImportError:
-    import sys
-
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+# Always import the package from this repository's src/, even if an older copy is installed:
+# hosts such as Streamlit Community Cloud update the code on each push but reinstall packages
+# only when requirements.txt changes, so an installed copy can lag behind this file.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ips_soundboard.dashboard import tables
 from ips_soundboard.dashboard.pipeline import Analysis, new_money_plan, run_analysis
