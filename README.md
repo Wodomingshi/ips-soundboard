@@ -121,6 +121,10 @@ python -m ips_soundboard.report examples/sample_investor_eur/holdings.csv exampl
 
 Output: `reports/out/review-<date>.md` plus the `.facts.json` it used (both git-ignored). Only computed results are sent to the API, not the holdings file. Limitation: the check proves a number exists in the facts, not that a sentence attaches it to the right thing; the tables next to the text make that easy to verify.
 
+### Your own private copy online (for your phone)
+
+See [docs/deploy.md](docs/deploy.md): Streamlit Community Cloud, restricted to your email, with your portfolio stored as the app's secrets (`python tools/make_secrets.py private` prepares them).
+
 ### Checking the layout on desktop and phone
 
 ```bash

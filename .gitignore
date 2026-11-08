@@ -31,3 +31,6 @@ reports/out/
 *.draft.yaml
 *.suggested.csv
 screenshots/
+
+# Streamlit secrets (your portfolio, if you deploy privately)
+.streamlit/secrets.toml
