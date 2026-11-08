@@ -21,7 +21,30 @@ from pydantic import ValidationError
 # Always import the package from this repository's src/, even if an older copy is installed:
 # hosts such as Streamlit Community Cloud update the code on each push but reinstall packages
 # only when requirements.txt changes, so an installed copy can lag behind this file.
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+SRC = Path(__file__).resolve().parents[1] / "src"
+sys.path.insert(0, str(SRC))
+
+
+def _reload_package_if_updated() -> None:
+    """Streamlit reruns this script in the same process and reloads changed files from app/ only.
+
+    After an update, the package under src/ would stay in memory in its old version while this
+    file is new. So: if any package file changed since it was loaded, drop the loaded modules
+    and the cached results, and import fresh.
+    """
+    version = max(path.stat().st_mtime for path in (SRC / "ips_soundboard").rglob("*.py"))
+    loaded = sys.modules.get("ips_soundboard")
+    if loaded is not None and getattr(loaded, "_code_version", version) != version:
+        for name in [m for m in sys.modules if m == "ips_soundboard" or m.startswith("ips_soundboard.")]:
+            del sys.modules[name]
+        st.cache_resource.clear()
+        st.cache_data.clear()
+    import ips_soundboard
+
+    ips_soundboard._code_version = version
+
+
+_reload_package_if_updated()
 
 from ips_soundboard.dashboard import tables
 from ips_soundboard.dashboard.pipeline import Analysis, new_money_plan, run_analysis
