@@ -162,3 +162,18 @@ def test_value_history_and_ranges(analysis) -> None:
     assert len(tables.history_frame(analysis)) > len(history)  # max shows more
     breaches = tables.breach_frame(analysis)
     assert not breaches.empty and (breaches["Start"] >= pd.Timestamp("2026-07-30")).all()
+
+
+def test_allocation_chart_adds_an_outside_saa_row() -> None:
+    text = (SAMPLE_DIR / "holdings.csv").read_text(encoding="utf-8")
+    text += "Clean Energy ETF,,brokerage,EUR,,,10000,etf,clean_energy,theme,,,,\n"
+    from ips_soundboard.holdings import parse_holdings
+    a = run_analysis(parse_holdings(text), load_ips(SAMPLE_DIR / "ips.yaml"), sample_market(), as_of=AS_OF,
+                     with_risk=False)
+    frame = tables.sleeve_chart_frame(a)
+    outside = frame[frame["Sleeve"] == "Outside SAA"].iloc[0]
+    assert outside["Weight"] == pytest.approx(10_000 / a.allocation.managed_value)
+    assert (outside["Target"], outside["Max"], outside["Status"]) == (0.0, 0.0, "above")  # sample IPS allows no themes
+    assert "Clean energy" in outside["Details"]
+    assert list(tables.sleeve_chart_frame(run_analysis(load_holdings(SAMPLE_DIR / "holdings.csv"),
+                load_ips(SAMPLE_DIR / "ips.yaml"), sample_market(), as_of=AS_OF, with_risk=False))["Sleeve"])[-1] == "Cash"

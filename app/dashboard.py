@@ -1,4 +1,4 @@
-"""IPS Soundboard dashboard.
+"""IPS Checker dashboard.
 
     streamlit run app/dashboard.py
 
@@ -48,7 +48,7 @@ DEMO_ONLY = bool(os.environ.get("IPS_SOUNDBOARD_DEMO_ONLY"))
 NEUTRAL = "#c4c7cc"
 ACCENT = "#1f3a68"
 
-st.set_page_config(page_title="IPS Soundboard", layout="wide")
+st.set_page_config(page_title="IPS Checker", layout="wide")
 
 
 # --- layout --------------------------------------------------------------------------
@@ -65,16 +65,30 @@ KPI_CSS = """
 .kpi .note {font-size: 0.8rem; opacity: 0.65; line-height: 1.3;}
 @media (max-width: 640px) {.kpi .value {font-size: 1.35rem;} h1 {font-size: 2rem !important;}}
 .finding {margin: 0 0 0.5rem; line-height: 1.45;}
+.kpi .tip {position: relative; display: inline-block; margin-left: 0.3rem; cursor: help; outline: none;}
+.kpi .tip::after {content: attr(data-tip); position: absolute; left: -0.5rem; bottom: 1.5rem; z-index: 10; display: none;
+  background: #262730; color: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; white-space: nowrap;}
+.kpi .tip:hover::after, .kpi .tip:focus::after {display: block;}
+.legend {display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; font-size: 0.85rem; opacity: 0.85; margin: 0 0 0.25rem;}
+.legend span {display: inline-flex; align-items: center; gap: 0.4rem;}
+.legend i {display: inline-block; width: 16px; height: 10px; border-radius: 2px;}
+.legend i.range {background: #d9d9d9; height: 14px;}
+.legend i.within {background: #2ca02c;}
+.legend i.outside {background: #d62728;}
+.legend i.target {background: #111; width: 3px; height: 16px; border-radius: 0;}
 </style>
 """
 
 
-def kpis(items: list[tuple[str, str, bool]] | list[tuple[str, str, bool, str]]) -> None:
-    """(label, value, highlight in red[, small note under the value])."""
+def kpis(items: list[tuple]) -> None:
+    """(label, value, highlight in red[, note under the value[, text shown on hover/tap of an info icon]])."""
     cells = ""
-    for label_, value, alert, *note in items:
-        note_html = f'<div class="note">{html.escape(note[0])}</div>' if note else ""
-        cells += (f'<div class="kpi"><div class="label">{html.escape(label_)}</div>'
+    for label_, value, alert, *extra in items:
+        note, tip = (extra + [None, None])[:2]
+        note_html = f'<div class="note">{html.escape(note)}</div>' if note else ""
+        tip_html = (f'<span class="tip" tabindex="0" data-tip="{html.escape(tip, quote=True)}">ⓘ</span>'
+                    if tip else "")
+        cells += (f'<div class="kpi"><div class="label">{html.escape(label_)}{tip_html}</div>'
                   f'<div class="value{" alert" if alert else ""}">{html.escape(value)}</div>{note_html}</div>')
     st.markdown(f'{KPI_CSS}<div class="kpis">{cells}</div>', unsafe_allow_html=True)
 
@@ -147,8 +161,8 @@ def show(frame: pd.DataFrame, *, pct: tuple[str, ...] = (), amounts: tuple[str, 
 # --- charts ------------------------------------------------------------------------
 
 def sleeve_chart(frame: pd.DataFrame) -> alt.Chart:
-    saa = frame[frame["Status"] != "outside SAA"]
-    base = alt.Chart(saa).encode(y=alt.Y("Sleeve:N", sort=None, title=None, axis=alt.Axis(labelLimit=140)))
+    """One row per SAA sleeve, plus an 'Outside SAA' row when part of the portfolio sits outside it."""
+    base = alt.Chart(frame).encode(y=alt.Y("Sleeve:N", sort=None, title=None, axis=alt.Axis(labelLimit=140)))
     band = base.mark_bar(color="#d9d9d9", height=22).encode(
         x=alt.X("Min:Q", axis=alt.Axis(format="%"), title="Weight in the managed portfolio"), x2="Max:Q")
     actual = base.mark_bar(height=10).encode(
@@ -156,9 +170,9 @@ def sleeve_chart(frame: pd.DataFrame) -> alt.Chart:
         color=alt.Color("Status:N", scale=alt.Scale(domain=["below", "within", "above"],
                                                     range=["#d62728", "#2ca02c", "#d62728"]), legend=None),
         tooltip=["Sleeve", alt.Tooltip("Weight:Q", format=".1%"), alt.Tooltip("Target:Q", format=".1%"),
-                 alt.Tooltip("Min:Q", format=".1%"), alt.Tooltip("Max:Q", format=".1%")])
+                 alt.Tooltip("Min:Q", format=".1%"), alt.Tooltip("Max:Q", format=".1%"), "Details"])
     target = base.mark_tick(color="black", thickness=2, size=26).encode(x="Target:Q")
-    return (band + actual + target).properties(height=40 * len(saa))
+    return (band + actual + target).properties(height=40 * len(frame))
 
 
 def contribution_chart(frame: pd.DataFrame) -> alt.Chart:
@@ -180,21 +194,35 @@ def value_chart(a: Analysis, start: date) -> alt.LayerChart | None:
     history = tables.history_frame(a, start)
     if history.empty:
         return None
-    start = pd.Timestamp(review_start(a.ips, a.snapshot.as_of))
+    ccy = a.ips.base_currency
+    review = pd.Timestamp(review_start(a.ips, a.snapshot.as_of))
     period = tables.PERIOD_WORD[a.ips.rebalancing.monitoring_frequency]
     x = alt.X("Date:T", title=None)
-    line = alt.Chart(history).mark_line(color=ACCENT, strokeWidth=1.5).encode(
-        x=x, y=alt.Y("Value:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(format="~s")),
-        tooltip=[alt.Tooltip("Date:T", format="%d %b %Y"), alt.Tooltip("Value:Q", format=",.0f")])
-    marker = pd.DataFrame({"Date": [start], "Label": [f"Last {period}"]})
-    rule = alt.Chart(marker).mark_rule(color="#888", strokeDash=[4, 3]).encode(x="Date:T")
-    text = alt.Chart(marker).mark_text(align="right", dx=-4, y=8, color="#666", fontSize=11).encode(
+    y = alt.Y("Value:Q", title=None, scale=alt.Scale(zero=False), axis=alt.Axis(format="~s"))
+
+    # Hover (or tap): the nearest date gets a vertical line, a dot on the curve and a tooltip with its value.
+    hover = alt.selection_point(fields=["Date"], nearest=True, on="pointerover", clear="pointerout", empty=False)
+    base = alt.Chart(history).encode(x=x, y=y)
+    line = base.mark_line(color=ACCENT, strokeWidth=1.5)
+    catcher = base.mark_point(opacity=0, size=200).encode(
+        tooltip=[alt.Tooltip("Date:T", format="%d %b %Y", title="Date"),
+                 alt.Tooltip("Value:Q", format=",.0f", title=f"Value ({ccy})")]).add_params(hover)
+    cursor = alt.Chart(history).mark_rule(color="#888").encode(x=x).transform_filter(hover)
+    dot = base.mark_point(filled=True, size=55, color=ACCENT).transform_filter(hover)
+
+    marker = pd.DataFrame({"Date": [review], "Label": [f"Last {period}"]})
+    period_rule = alt.Chart(marker).mark_rule(color="#888", strokeDash=[4, 3]).encode(x="Date:T")
+    period_text = alt.Chart(marker).mark_text(align="right", dx=-4, y=alt.expr("height - 6"), color="#666",
+                                              fontSize=11).encode(
         x="Date:T", text="Label")
-    layers = [line, rule, text]
+    layers = [line, period_rule, period_text, catcher, cursor, dot]
     breaches = tables.breach_frame(a)
     if not breaches.empty:
-        layers.insert(0, alt.Chart(breaches).mark_rect(color="#d62728", opacity=0.18).encode(
+        breaches["Shading"] = "Rebalancing required"
+        layers.insert(0, alt.Chart(breaches).mark_rect(opacity=0.18).encode(
             x="Start:T", x2="End:T",
+            color=alt.Color("Shading:N", scale=alt.Scale(range=["#d62728"]),
+                            legend=alt.Legend(orient="top", title=None, symbolType="square", symbolOpacity=0.35)),
             tooltip=[alt.Tooltip("Sleeves", title="Outside band"), alt.Tooltip("Start:T", format="%d %b %Y"),
                      alt.Tooltip("End:T", format="%d %b %Y")]))
     return alt.layer(*layers).properties(height=220)
@@ -209,15 +237,16 @@ def overview(a: Analysis) -> None:
         choice = st.segmented_control("Period", list(ranges), default=default, key="value_range",
                                       label_visibility="collapsed")
         st.altair_chart(value_chart(a, ranges[choice or default]), width="stretch")
-        notes = " ".join(a.risk.history.notes)
-        st.caption(f"Managed portfolio in {ccy}, each holding from its purchase date (sold positions are not in "
-                   f"the file). Red: days in the latest review period when a sleeve was outside its band. {notes}")
+        if a.risk.history.notes:  # only when some holdings had to be assumed (e.g. no purchase date)
+            st.caption(" ".join(a.risk.history.notes))
     left, right = st.columns([3, 2], gap="large")
     with left:
         st.subheader("Allocation vs SAA")
-        st.caption("Grey bar = allowed band, black tick = target, coloured bar = actual (red = outside band).")
+        st.markdown('<div class="legend"><span><i class="range"></i>Allowed range</span>'
+                    '<span><i class="target"></i>Target</span><span><i class="within"></i>Within range</span>'
+                    '<span><i class="outside"></i>Outside range</span></div>', unsafe_allow_html=True)
         sleeves = tables.sleeve_table(a)
-        st.altair_chart(sleeve_chart(sleeves), width="stretch")
+        st.altair_chart(sleeve_chart(tables.sleeve_chart_frame(a)), width="stretch")
         show(sleeves.rename(columns={"Value": f"Value ({ccy})"}),
              pct=("Weight", "Target", "Min", "Max", "Drift"), amounts=(f"Value ({ccy})",))
     with right:
@@ -327,9 +356,8 @@ def new_money(a: Analysis) -> None:
 # --- page --------------------------------------------------------------------------
 
 def main() -> None:
-    st.title("IPS Soundboard")
-    st.caption("Reviews a portfolio against its own Investment Policy Statement. "
-               "Analysis only: not investment, tax or legal advice.")
+    st.title("IPS Checker")
+    st.caption("Checks your portfolio against your Investment Policy Statement.")
     inputs = choose_inputs()
     if inputs is None:
         return
@@ -347,11 +375,14 @@ def main() -> None:
     ccy = a.ips.base_currency
     breaches = sum(f.severity == "breach" for f in a.findings)
     warnings_ = sum(f.severity == "warning" for f in a.findings)
-    kpis([("Total wealth", f"{a.allocation.total_wealth:,.0f} {ccy}", False),
+    unvalued = len(a.allocation.unvalued)
+    kpis([("Total wealth", f"{a.allocation.total_wealth:,.0f} {ccy}", False, None,
+           f"Prices as of {a.snapshot.as_of}. Unvalued holdings: {unvalued}."),
           ("Managed portfolio", f"{a.allocation.managed_value:,.0f} {ccy}", False),
           ("IPS breaches", str(breaches), breaches > 0),
           ("Warnings", str(warnings_), False)])
-    st.caption(f"Prices as of {a.snapshot.as_of}. Unvalued holdings: {len(a.allocation.unvalued)}.")
+    if unvalued:  # worth seeing without hovering: these holdings are missing from every figure
+        st.warning(f"{unvalued} holding(s) could not be valued and are left out of the figures (see Holdings).")
 
     document = inputs[2]
     tab_overview, tab_rules, tab_holdings, tab_risk, tab_new = st.tabs(

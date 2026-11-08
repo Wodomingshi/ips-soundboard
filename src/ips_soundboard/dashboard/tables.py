@@ -42,6 +42,27 @@ def sleeve_table(a: Analysis) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def sleeve_chart_frame(a: Analysis) -> pd.DataFrame:
+    """SAA sleeves for the chart, plus one 'Outside SAA' row adding up everything outside the SAA.
+
+    Its target is 0%; its allowed range is the IPS theme budget (thematic positions are allowed up to
+    it, everything else outside the SAA is meant to be run down).
+    """
+    al = a.allocation
+    rows = [{"Sleeve": label(s.sleeve), "Weight": s.weight, "Target": s.target, "Min": s.min, "Max": s.max,
+             "Status": s.status, "Details": ""} for s in al.sleeves]
+    outside = sum(al.outside_saa.values())
+    if outside and al.managed_value:
+        weight = outside / al.managed_value
+        budget = a.ips.taa.themes.max_total if a.ips.taa.themes else 0.0
+        parts = ", ".join(f"{label(name)} {value / al.managed_value:.1%}"
+                          for name, value in sorted(al.outside_saa.items(), key=lambda item: -item[1]))
+        rows.append({"Sleeve": "Outside SAA", "Weight": weight, "Target": 0.0, "Min": 0.0, "Max": budget,
+                     "Status": "above" if weight > budget + 1e-9 else "within",
+                     "Details": f"{parts}. Allowed: themes up to {budget:.1%} (IPS theme budget)."})
+    return pd.DataFrame(rows)
+
+
 def findings_table(a: Analysis) -> pd.DataFrame:
     """Each message names the holding or sleeve and the IPS limit, so no separate rule column is needed."""
     return pd.DataFrame([{"Severity": f.severity, "Rule": f.rule, "Finding": f.message} for f in a.findings],
