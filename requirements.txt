@@ -1,3 +1,3 @@
-# Used by Streamlit Community Cloud: installs this repo with the dashboard extras.
-# (Local setup: pip install -e ".[dev]")
-.[app]
+# Used by Streamlit Community Cloud: installs this repo (editable, so it always matches the code)
+# with the dashboard extras. Local setup: pip install -e ".[dev]"
+-e .[app]
