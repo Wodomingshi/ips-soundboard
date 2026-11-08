@@ -74,6 +74,27 @@ Where to invest new savings (cash reserve first, then the SAA sleeves furthest b
 python -m ips_soundboard.contribute examples/sample_investor_eur/holdings.csv examples/sample_investor_eur/ips.yaml --amount 9000
 ```
 
+### Start from a short list of holdings
+
+You don't have to write the full holdings file by hand. A list with a ticker and a quantity per row is enough:
+
+```csv
+ticker,quantity,purchase_date
+ROG.SW,10,2024-02-01
+AMS:IMEU,900,
+```
+
+```bash
+python -m ips_soundboard.prepare my_list.csv --account brokerage
+```
+
+- Name and currency come from Yahoo; rows without an account get `--account` (default `main`, which must match your IPS scope).
+- Tickers can be Yahoo style (`ROG.SW`, `MU`) or `EXCHANGE:SYMBOL` (`SWX:NESN`). Assets without a price (property, private funds) need a `name` and a `manual_value`, plus `--currency` if the row has none.
+- Your values are never changed. A different official name is listed as a suggestion (`--official-names` uses it); a currency that contradicts the price feed is flagged, not fixed.
+- Rows that can't be completed are listed under "Needs your input" and kept in the file. Fix them in `my_list.prepared.csv` (git-ignored) and run the command again on that file.
+- Common headers are understood (`symbol`, `shares`, `qty`, `date`, …); other columns are left out with a note. `purchase_date` and `purchase_price` are optional, but without a date the value chart treats the holding as held from the start.
+- Add `--classify ips.yaml` to let Claude suggest sleeves, roles and types straight after (see below).
+
 ### Extract an IPS document with Claude
 
 Turns a free-text IPS (Markdown, text or PDF) into a **draft** `ips.yaml` plus a review report. Install with `pip install -e ".[llm]"` and set `ANTHROPIC_API_KEY` (a Codespaces secret, or a git-ignored `.env` file).

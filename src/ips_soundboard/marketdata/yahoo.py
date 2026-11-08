@@ -14,7 +14,7 @@ from typing import Protocol
 
 import pandas as pd
 
-from ips_soundboard.marketdata.base import Quote, normalise_quote
+from ips_soundboard.marketdata.base import Quote, SecurityInfo, normalise_quote
 from ips_soundboard.marketdata.tickers import to_provider_symbol
 
 log = logging.getLogger(__name__)
@@ -40,6 +40,10 @@ class YahooClient(Protocol):
         """Daily closes, columns = Yahoo symbols."""
         ...
 
+    def name(self, symbol: str) -> str | None:
+        """The security's official name, or None."""
+        ...
+
 
 class YFinanceClient:
     """The real client. yfinance is imported lazily so tests never need the network."""
@@ -56,6 +60,17 @@ class YFinanceClient:
         if price is None or currency is None or not price > 0:
             return None
         return float(price), str(currency)
+
+    def name(self, symbol: str) -> str | None:
+        import yfinance as yf
+
+        try:
+            info = yf.Ticker(symbol).info
+        except Exception as error:  # one bad symbol must not stop the run
+            log.warning("Yahoo: no name for %s (%s)", symbol, error)
+            return None
+        name = info.get("longName") or info.get("shortName")
+        return str(name).strip() if name else None
 
     def closes(self, symbols: Sequence[str], start: date, end: date) -> pd.DataFrame:
         import yfinance as yf
@@ -82,6 +97,12 @@ class YahooProvider:
             if result is not None:
                 quotes[ticker] = normalise_quote(*result)
         return quotes
+
+    def describe(self, tickers: Sequence[str]) -> dict[str, SecurityInfo]:
+        found = {}
+        for ticker, quote in self.latest_prices(tickers).items():
+            found[ticker] = SecurityInfo(self.client.name(to_provider_symbol(ticker, "yahoo")), quote.currency)
+        return found
 
     def fx_rates(self, currencies: Sequence[str], base: str) -> dict[str, float]:
         rates = {}

@@ -7,7 +7,7 @@ from datetime import date
 
 import pandas as pd
 
-from ips_soundboard.marketdata.base import Quote
+from ips_soundboard.marketdata.base import Quote, SecurityInfo
 
 
 class FakeProvider:
@@ -17,11 +17,13 @@ class FakeProvider:
         fx: Mapping[str, float] | None = None,
         closes: pd.DataFrame | None = None,
         fx_closes: pd.DataFrame | None = None,
+        names: Mapping[str, str] | None = None,
     ) -> None:
         self.quotes = dict(quotes or {})
         self.fx = dict(fx or {})
         self.closes = closes if closes is not None else pd.DataFrame()
         self.fx_closes = fx_closes if fx_closes is not None else pd.DataFrame()
+        self.names = dict(names or {})
 
     def latest_prices(self, tickers: Sequence[str]) -> dict[str, Quote]:
         return {t: self.quotes[t] for t in tickers if t in self.quotes}
@@ -31,6 +33,9 @@ class FakeProvider:
 
     def history(self, tickers: Sequence[str], start: date, end: date) -> pd.DataFrame:
         return _window(self.closes, tickers, start, end)
+
+    def describe(self, tickers: Sequence[str]) -> dict[str, SecurityInfo]:
+        return {t: SecurityInfo(self.names.get(t), self.quotes[t].currency) for t in tickers if t in self.quotes}
 
     def fx_history(self, currencies: Sequence[str], base: str, start: date, end: date) -> pd.DataFrame:
         return _window(self.fx_closes, [c for c in currencies if c != base], start, end)
