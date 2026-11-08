@@ -219,7 +219,8 @@ def contribution_chart(frame: pd.DataFrame) -> alt.Chart:
                                                      range=[NEUTRAL, ACCENT]),
                         legend=alt.Legend(orient="top", title=None)),
         tooltip=["Name", "Measure", alt.Tooltip("value:Q", format=".1%")],
-    ).properties(height=34 * len(top) // 2)
+    ).properties(height=34 * len(top) // 2,
+                 autosize=alt.AutoSizeParams(type="fit-x", contains="padding"))  # fit width only, keep bar height
 
 
 # --- tabs --------------------------------------------------------------------------
@@ -333,8 +334,10 @@ def risk(a: Analysis) -> None:
         st.warning(f"Risk could not be computed: {a.risk_error}")
         return
     r, ccy = a.risk, a.ips.base_currency
-    st.caption(f"Today's portfolio run over {r.window_start} to {r.window_end} ({r.observations} days), "
-               f"in {ccy} including FX. Covers {r.coverage:.1%} of the managed portfolio.")
+    years = (r.window_end - r.window_start).days / 365.25
+    st.caption(f"Today's portfolio replayed over {r.window_start} to {r.window_end} ({r.observations:,} trading "
+               f"days, about {years:.1f} years), in {ccy} including FX. Covers {r.coverage:.1%} of the managed "
+               f"portfolio.")
     kpis([("Volatility (annualised)", f"{r.volatility:.1%}", False, f"{r.volatility_without_fx:.1%} without FX moves"),
           ("Max drawdown", f"{r.max_drawdown:.1%}", False, f"{r.drawdown_peak} to {r.drawdown_trough}"),
           (f"VaR {r.confidence:.0%}, 1 month", f"{r.var_value:,.0f} {ccy}", False,
@@ -343,16 +346,13 @@ def risk(a: Analysis) -> None:
            f"{r.cvar:.1%}: average loss in the worst {1 - r.confidence:.0%} of months")])
 
     st.subheader("Where the risk comes from")
-    st.caption("Share of risk: each holding's contribution to portfolio volatility (sums to 100%). "
-               "A share well above the weight means a concentrated risk.")
-    by_holding = tables.contribution_table(a, "holding")
-    st.altair_chart(contribution_chart(by_holding), width="stretch")
-    left, right = st.columns(2)
-    with left:
-        show(tables.contribution_table(a, "sleeve").rename(columns={"Name": "Sleeve"}),
-             pct=("Weight", "Share of risk"))
-    with right:
-        exposure = pd.DataFrame(list(r.currency_exposure.items()), columns=["Currency", "Share"])
+    views = {"By holding": "holding", "By sleeve": "sleeve"}
+    view = st.segmented_control("Group", list(views), default="By holding", key="risk_view",
+                                label_visibility="collapsed")
+    st.altair_chart(contribution_chart(tables.contribution_table(a, views[view or "By holding"])), width="stretch")
+    st.markdown("**Currency exposure**")
+    exposure = pd.DataFrame(list(r.currency_exposure.items()), columns=["Currency", "Share"])
+    with st.columns(2)[0]:  # half width on a desktop, full width on a phone
         show(exposure, pct=("Share",))
 
     st.subheader("Stress tests")
