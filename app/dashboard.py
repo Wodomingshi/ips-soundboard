@@ -76,8 +76,6 @@ KPI_CSS = """
 .finding.breach {border-color: #d62728;} .finding.warning {border-color: #e6a000;}
 .finding .chip {font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 0.5rem;}
 .finding.breach .chip {color: #d62728;} .finding.warning .chip {color: #b07a00;}
-.legend i.breach {background: #d62728; width: 10px; height: 10px; border-radius: 50%;}
-.legend i.warning {background: #e6a000; width: 10px; height: 10px; border-radius: 50%;}
 .kpi .tip {position: relative; display: inline-block; margin-left: 0.3rem; cursor: help; outline: none;}
 .kpi .tip::after {content: attr(data-tip); position: absolute; left: -0.5rem; bottom: 1.5rem; z-index: 10; display: none;
   background: #262730; color: #fff; padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.8rem; white-space: nowrap;}
@@ -294,10 +292,6 @@ def compliance(a: Analysis, document: str | None) -> None:
             f'<div class="finding {row.Severity}"><span class="chip">{row.Severity}</span>{html.escape(row.Finding)}</div>'
             for row in sorted(findings.itertuples(), key=lambda r: order[r.Severity]))
         st.markdown(cards, unsafe_allow_html=True)
-        st.markdown('<div class="legend"><span><i class="breach"></i>Breach: the IPS requires action</span>'
-                    '<span><i class="warning"></i>Warning: limit reached, no further buying</span></div>',
-                    unsafe_allow_html=True)
-    st.caption("Exclusions are checked on stocks and bonds held directly (issuer and industry columns).")
     if document:
         with st.expander("Read your IPS document"):
             st.markdown(document)
