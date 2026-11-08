@@ -25,7 +25,7 @@ def secrets_toml(folder: Path) -> str:
             values[key] = path.read_text(encoding="utf-8")
         elif key != "ips_md":
             raise FileNotFoundError(f"{path} is missing")
-    text = "# IPS Soundboard: your portfolio for the private Streamlit deployment. Keep it private.\n\n"
+    text = "# IPS Checker: your portfolio for the private Streamlit deployment. Keep it private.\n\n"
     text += "\n\n".join(f"{key} = {toml_string(value)}" for key, value in values.items()) + "\n"
     if tomllib.loads(text) != values:  # never hand over something that would not read back identically
         raise ValueError("the secrets text does not read back identically")

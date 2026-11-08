@@ -1,4 +1,4 @@
-# IPS Soundboard
+# IPS Checker
 
 Review a portfolio against its own Investment Policy Statement (IPS): allocation drift, rule breaches, concentration and risk, with a written analysis.
 

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ips-soundboard"
 version = "0.1.0"
-description = "Review a portfolio against its own Investment Policy Statement."
+description = "IPS Checker: checks a portfolio against its own Investment Policy Statement."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

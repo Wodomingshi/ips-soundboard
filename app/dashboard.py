@@ -1,4 +1,4 @@
-"""IPS Soundboard dashboard.
+"""IPS Checker dashboard.
 
     streamlit run app/dashboard.py
 
@@ -48,7 +48,7 @@ DEMO_ONLY = bool(os.environ.get("IPS_SOUNDBOARD_DEMO_ONLY"))
 NEUTRAL = "#c4c7cc"
 ACCENT = "#1f3a68"
 
-st.set_page_config(page_title="IPS Soundboard", layout="wide")
+st.set_page_config(page_title="IPS Checker", layout="wide")
 
 
 # --- layout --------------------------------------------------------------------------
@@ -356,8 +356,8 @@ def new_money(a: Analysis) -> None:
 # --- page --------------------------------------------------------------------------
 
 def main() -> None:
-    st.title("IPS Soundboard")
-    st.caption("Reviews a portfolio against its own Investment Policy Statement.")
+    st.title("IPS Checker")
+    st.caption("Checks your portfolio against your Investment Policy Statement.")
     inputs = choose_inputs()
     if inputs is None:
         return

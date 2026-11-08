@@ -1,7 +1,7 @@
 # CLAUDE.md — working rules for this repo
 
 ## What this project is
-IPS Soundboard: reviews a portfolio against its Investment Policy Statement. Deterministic Python engine for all numbers; LLM (Claude API) only for extraction (IPS text → validated config, holdings → classification) and narrative written from computed results. See `docs/architecture.md`.
+IPS Checker (Python package `ips_soundboard`): checks a portfolio against its Investment Policy Statement. Deterministic Python engine for all numbers; LLM (Claude API) only for extraction (IPS text → validated config, holdings → classification) and narrative written from computed results. See `docs/architecture.md`.
 
 ## How to work
 - **One module at a time.** Don't build ahead of the current module.
