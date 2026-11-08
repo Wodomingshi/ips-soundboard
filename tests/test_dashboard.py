@@ -212,3 +212,97 @@ print("ok")
 """
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120)
     assert result.stdout.strip().endswith("ok"), result.stderr[-2000:]
+
+
+# --- reading an IPS document in the app ---------------------------------------------
+
+def upload_document(at, document: bytes = b"", name: str = "IPS.md"):
+    """Pick 'Upload files', then upload the sample holdings and an IPS document."""
+    at.run()
+    at.sidebar.radio[0].set_value("Upload files").run()
+    at.sidebar.file_uploader[0].set_value(("holdings.csv", (SAMPLE_DIR / "holdings.csv").read_bytes(), "text/csv"))
+    at.sidebar.file_uploader[1].set_value((name, document or (SAMPLE_DIR / "IPS.md").read_bytes(), "text/markdown"))
+    return at.run()
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_app_reads_an_ips_document_once_and_uses_it_after_review() -> None:
+    streamlit_testing = pytest.importorskip("streamlit.testing.v1")
+    from test_extract import GOLDEN, FakeClient
+
+    from ips_soundboard.dashboard.claude import set_client
+
+    client = FakeClient(GOLDEN)
+    set_provider(sample_market())
+    set_client(client)
+    try:
+        at = upload_document(streamlit_testing.AppTest.from_file(str(ROOT / "app" / "dashboard.py"),
+                                                                  default_timeout=60))
+        assert not at.exception, at.exception
+        assert [b.label for b in at.button] == ["Read my IPS with Claude"]
+        assert client.calls == []  # nothing is sent before the click
+        at.button[0].click().run()
+        assert not at.exception, at.exception
+        assert len(client.calls) == 1
+        assert "every one checks out" in at.success[0].value
+        assert [e.label for e in at.expander][:2] == ["Found in your document (29)", "Not stated in your document (7)"]
+        assert sum('class="reading"' in m.value for m in at.markdown) == 1  # all values verified: no "Check these"
+        assert "some names don't match your holdings" in at.warning[0].value  # GOLDEN uses its own sleeve names
+        assert "eu_equity" in at.warning[0].value
+        at.text_area[0].set_value(at.text_area[0].value.replace("target: 0.25", "target: 0.95", 1)).run()
+        assert "Not valid yet" in at.error[0].value
+        assert next(b for b in at.button if b.label == "Use this IPS").disabled
+        at.text_area[0].set_value(at.text_area[0].value.replace("target: 0.95", "target: 0.25", 1)).run()
+        next(b for b in at.button if b.label == "Use this IPS").click().run()
+        assert not at.exception, at.exception
+        assert len(client.calls) == 1  # reviewing and confirming never calls Claude again
+        assert [t.label for t in at.tabs] == ["Overview", "Compliance", "Holdings", "Risk", "New money"]
+        assert any("Total wealth" in m.value for m in at.markdown)
+    finally:
+        set_provider(None)
+        set_client(None)
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_app_without_a_key_asks_for_a_yaml(monkeypatch) -> None:
+    streamlit_testing = pytest.importorskip("streamlit.testing.v1")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    at = upload_document(streamlit_testing.AppTest.from_file(str(ROOT / "app" / "dashboard.py"), default_timeout=60))
+    assert not at.exception, at.exception
+    assert "needs a Claude API key" in at.warning[0].value
+    assert not [b for b in at.button if b.label == "Read my IPS with Claude"]
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_app_caps_reads_per_visit() -> None:
+    streamlit_testing = pytest.importorskip("streamlit.testing.v1")
+    from ips_soundboard.dashboard.claude import set_client
+
+    set_client(object())  # any client: the cap is checked before it is used
+    try:
+        at = streamlit_testing.AppTest.from_file(str(ROOT / "app" / "dashboard.py"), default_timeout=60)
+        at.session_state["ips_read_count"] = 3
+        at = upload_document(at)
+        assert not at.exception, at.exception
+        assert "used its 3 reads" in at.warning[0].value
+    finally:
+        set_client(None)
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_app_reports_a_failed_read() -> None:
+    streamlit_testing = pytest.importorskip("streamlit.testing.v1")
+    from test_extract import GOLDEN, FakeClient
+
+    from ips_soundboard.dashboard.claude import set_client
+
+    set_client(FakeClient(GOLDEN, stop_reason="max_tokens"))
+    try:
+        at = upload_document(streamlit_testing.AppTest.from_file(str(ROOT / "app" / "dashboard.py"),
+                                                                  default_timeout=60))
+        at.button[0].click().run()
+        assert not at.exception, at.exception
+        assert "Claude could not read the document" in at.error[0].value
+        assert at.session_state["ips_read_count"] == 1
+    finally:
+        set_client(None)

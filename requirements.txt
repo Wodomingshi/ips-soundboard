@@ -1,3 +1,5 @@
 # Used by Streamlit Community Cloud: installs this repo (editable, so it always matches the code)
-# with the dashboard extras. Local setup: pip install -e ".[dev]"
+# with the dashboard extras, which include the Claude SDK and pypdf for reading IPS documents.
+# Streamlit reinstalls packages only when this file changes: edit it when the extras change.
+# Local setup: pip install -e ".[dev]"
 -e .[app]
