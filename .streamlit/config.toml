@@ -1,0 +1,3 @@
+[client]
+# Hide Streamlit's Deploy button and developer menu: framework clutter, especially on a phone.
+toolbarMode = "minimal"

@@ -17,6 +17,13 @@ import pandas as pd
 import streamlit as st
 from pydantic import ValidationError
 
+try:  # installed package (pip install -e .); fall back to the source folder on hosts that only copy the repo
+    import ips_soundboard  # noqa: F401  (only checks that the package is installed)
+except ImportError:
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 from ips_soundboard.dashboard import tables
 from ips_soundboard.dashboard.pipeline import Analysis, new_money_plan, run_analysis
 from ips_soundboard.engine.contributions import describe
@@ -32,6 +39,7 @@ PRIVATE_DIR = ROOT / "private"
 DEMO = "Demo: sample investor (fictional)"
 PRIVATE = "My files (private/ folder)"
 UPLOAD = "Upload files"
+SECRETS = "My portfolio"
 # Hide the private/ option (layout checks and screenshots must never show real data).
 DEMO_ONLY = bool(os.environ.get("IPS_SOUNDBOARD_DEMO_ONLY"))
 
@@ -73,12 +81,30 @@ def kpis(items: list[tuple[str, str, bool]] | list[tuple[str, str, bool, str]]) 
 
 # --- inputs ------------------------------------------------------------------------
 
+def secret_portfolio() -> tuple[str, str, str | None] | None:
+    """Holdings and IPS stored as app secrets (a private hosted deployment), if present.
+
+    Keys: holdings_csv, ips_yaml, and optionally ips_md. See docs/deploy.md.
+    """
+    try:
+        secrets = st.secrets
+        if "holdings_csv" in secrets and "ips_yaml" in secrets:
+            return secrets["holdings_csv"], secrets["ips_yaml"], secrets.get("ips_md")
+    except (FileNotFoundError, KeyError, st.errors.StreamlitSecretNotFoundError):
+        pass  # no secrets configured: normal outside a deployment
+    return None
+
+
 def choose_inputs() -> tuple[str, str, str | None] | None:
     """(holdings CSV, IPS YAML, IPS document or None)."""
     st.sidebar.header("Portfolio")
     has_private = (PRIVATE_DIR / "holdings.csv").exists() and (PRIVATE_DIR / "ips.yaml").exists()
-    sources = [DEMO] + ([PRIVATE] if has_private and not DEMO_ONLY else []) + [UPLOAD]
-    source = st.sidebar.radio("Data", sources, index=1 if PRIVATE in sources else 0)
+    from_secrets = None if DEMO_ONLY else secret_portfolio()
+    own = ([SECRETS] if from_secrets else []) + ([PRIVATE] if has_private and not DEMO_ONLY else [])
+    sources = own + [DEMO, UPLOAD]  # your own data first, when there is any
+    source = st.sidebar.radio("Data", sources, index=0)
+    if source == SECRETS:
+        return from_secrets
     if source in (DEMO, PRIVATE):
         folder = DEMO_DIR if source == DEMO else PRIVATE_DIR
         document = folder / "IPS.md"

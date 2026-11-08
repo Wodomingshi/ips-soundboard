@@ -118,6 +118,39 @@ def test_app_renders_demo_without_errors() -> None:
 
 
 
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_app_reads_a_portfolio_from_secrets() -> None:
+    """A private hosted deployment stores the portfolio as app secrets; it becomes the first data option."""
+    streamlit_testing = pytest.importorskip("streamlit.testing.v1")
+    set_provider(sample_market())
+    try:
+        at = streamlit_testing.AppTest.from_file(str(ROOT / "app" / "dashboard.py"), default_timeout=60)
+        at.secrets["holdings_csv"] = (SAMPLE_DIR / "holdings.csv").read_text(encoding="utf-8")
+        at.secrets["ips_yaml"] = (SAMPLE_DIR / "ips.yaml").read_text(encoding="utf-8")
+        at.run()
+        assert not at.exception, at.exception
+        assert at.sidebar.radio[0].options[0] == "My portfolio"
+        assert at.sidebar.radio[0].value == "My portfolio"
+        assert any("116,500 EUR" in m.value for m in at.markdown)
+    finally:
+        set_provider(None)
+
+
+def test_secrets_text_reads_back_identically(tmp_path) -> None:
+    import sys
+    import tomllib
+    sys.path.insert(0, str(ROOT / "tools"))
+    from make_secrets import secrets_toml
+
+    for name in ("holdings.csv", "ips.yaml", "IPS.md"):
+        (tmp_path / name).write_text((SAMPLE_DIR / name).read_text(encoding="utf-8"), encoding="utf-8")
+    text = secrets_toml(tmp_path)
+    assert tomllib.loads(text)["holdings_csv"] == (SAMPLE_DIR / "holdings.csv").read_text(encoding="utf-8")
+    odd = "Odd ''' quotes and \\ backslashes"
+    (tmp_path / "IPS.md").write_text(odd, encoding="utf-8")
+    assert tomllib.loads(secrets_toml(tmp_path))["ips_md"] == odd
+
+
 def test_value_history_and_ranges(analysis) -> None:
     ranges = tables.history_ranges(analysis)
     assert list(ranges) == ["Last year", "Since first trade", "Max (5 years)"]
